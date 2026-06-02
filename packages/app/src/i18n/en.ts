@@ -410,6 +410,7 @@ export const dict = {
   "language.es": "Español",
   "language.fr": "Français",
   "language.da": "Dansk",
+  "language.fi": "Suomi",
   "language.ja": "日本語",
   "language.pl": "Polski",
   "language.ru": "Русский",

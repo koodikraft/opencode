@@ -8,6 +8,7 @@ export const LOCALES = [
   "fr",
   "it",
   "da",
+  "fi",
   "ja",
   "pl",
   "ru",
@@ -39,6 +40,7 @@ const LABEL = {
   fr: "Français",
   it: "Italiano",
   da: "Dansk",
+  fi: "Suomi",
   ja: "日本語",
   pl: "Polski",
   ru: "Русский",
@@ -60,6 +62,7 @@ const TAG = {
   fr: "fr",
   it: "it",
   da: "da",
+  fi: "fi",
   ja: "ja",
   pl: "pl",
   ru: "ru",
@@ -81,6 +84,7 @@ const DOCS = {
   fr: "fr",
   it: "it",
   da: "da",
+  fi: "root",
   ja: "ja",
   pl: "pl",
   ru: "ru",
@@ -242,6 +246,7 @@ function match(input: string): Locale | null {
   if (value.startsWith("fr")) return "fr"
   if (value.startsWith("it")) return "it"
   if (value.startsWith("da")) return "da"
+  if (value.startsWith("fi")) return "fi"
   if (value.startsWith("ja")) return "ja"
   if (value.startsWith("pl")) return "pl"
   if (value.startsWith("ru")) return "ru"
