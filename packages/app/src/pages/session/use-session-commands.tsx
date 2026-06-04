@@ -21,6 +21,7 @@ import { extractPromptFromParts } from "@/utils/prompt"
 import { UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { Identifier } from "@/utils/id"
+import { sendFollowupDraft } from "@/components/prompt-input/submit"
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
@@ -160,29 +161,21 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }
 
     try {
-      sync.set("session_status", sessionID, { type: "busy" })
-      const messageID = Identifier.ascending("message")
-      sync.session.optimistic.add({
-        directory: sdk.directory,
-        sessionID,
-        message: {
-          id: messageID,
+      await sendFollowupDraft({
+        client: sdk.client,
+        serverSync,
+        sync,
+        draft: {
           sessionID,
-          role: "user",
-          time: { created: Date.now() },
+          sessionDirectory: sdk.directory,
+          prompt: [{ type: "text", content, start: 0, end: content.length }],
+          context: [],
           agent: currentAgent.name,
           model: DOMAIN_MODEL,
         },
-        parts: [{ type: "text", id: "prt1", text: content, sessionID, messageID }],
-      })
-      await sdk.client.session.promptAsync({
-        sessionID,
-        messageID,
-        parts: [{ type: "text", id: "prt1", text: content }],
       })
       focusInput()
     } catch (error) {
-      sync.set("session_status", sessionID, { type: "idle" })
       showToast({
         title: language.t("toast.session.domain.failed.title"),
         description: error instanceof Error ? error.message : language.t("common.requestFailed"),
