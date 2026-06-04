@@ -29,11 +29,6 @@ export type SessionCommandContext = {
   review?: () => boolean
 }
 
-const DOMAIN_MODEL = {
-  providerID: "opencode-go",
-  modelID: "deepseek-v4-flash",
-} as const
-
 const withCategory = (category: string) => {
   return (option: Omit<CommandOption, "category">): CommandOption => ({
     ...option,
@@ -131,12 +126,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const agentCommand = withCategory(language.t("command.category.agent"))
   const permissionsCommand = withCategory(language.t("command.category.permissions"))
 
-  const domainModelAvailable = () =>
-    local
-      .model
-      .list()
-      .some((item) => item.provider.id === DOMAIN_MODEL.providerID && item.id === DOMAIN_MODEL.modelID)
-
   const submitDomainAction = async (content: string) => {
     const sessionID = params.id
     const currentAgent = local.agent.current()
@@ -145,15 +134,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       showToast({
         title: language.t("toast.session.domain.unavailable.title"),
         description: language.t("toast.session.domain.unavailable.description"),
-        variant: "error",
-      })
-      return
-    }
-
-    if (!domainModelAvailable()) {
-      showToast({
-        title: language.t("toast.session.domain.modelUnavailable.title"),
-        description: language.t("toast.session.domain.modelUnavailable.description"),
         variant: "error",
       })
       return
@@ -172,14 +152,13 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
           role: "user",
           time: { created: Date.now() },
           agent: currentAgent.name,
-          model: DOMAIN_MODEL,
+          model: { providerID: "", modelID: "" },
         },
         parts: [{ type: "text", id: partID, text: content, sessionID, messageID }],
       })
       await sdk.client.session.promptAsync({
         sessionID,
         agent: currentAgent.name,
-        model: DOMAIN_MODEL,
         messageID,
         parts: [{ type: "text", id: partID, text: content }],
       })
