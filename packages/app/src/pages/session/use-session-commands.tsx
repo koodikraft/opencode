@@ -10,6 +10,7 @@ import { usePermission } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
+import { useServerSync } from "@/context/server-sync"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
@@ -19,6 +20,7 @@ import { createSessionTabs } from "@/pages/session/helpers"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { sendFollowupDraft } from "@/components/prompt-input/submit"
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
@@ -26,6 +28,11 @@ export type SessionCommandContext = {
   focusInput: () => void
   review?: () => boolean
 }
+
+const DOMAIN_MODEL = {
+  providerID: "opencode-go",
+  modelID: "deepseek-v4-flash",
+} as const
 
 const withCategory = (category: string) => {
   return (option: Omit<CommandOption, "category">): CommandOption => ({
@@ -44,6 +51,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const platform = usePlatform()
   const prompt = usePrompt()
   const sdk = useSDK()
+  const serverSync = useServerSync()
   const settings = useSettings()
   const sync = useSync()
   const terminal = useTerminal()
@@ -122,6 +130,79 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const mcpCommand = withCategory(language.t("command.category.mcp"))
   const agentCommand = withCategory(language.t("command.category.agent"))
   const permissionsCommand = withCategory(language.t("command.category.permissions"))
+
+  const domainModelAvailable = () =>
+    local
+      .model
+      .list()
+      .some((item) => item.provider.id === DOMAIN_MODEL.providerID && item.id === DOMAIN_MODEL.modelID)
+
+  const submitDomainAction = async (content: string) => {
+    const sessionID = params.id
+    const currentAgent = local.agent.current()
+
+    if (!sessionID || !currentAgent) {
+      showToast({
+        title: language.t("toast.session.domain.unavailable.title"),
+        description: language.t("toast.session.domain.unavailable.description"),
+        variant: "error",
+      })
+      return
+    }
+
+    if (!domainModelAvailable()) {
+      showToast({
+        title: language.t("toast.session.domain.modelUnavailable.title"),
+        description: language.t("toast.session.domain.modelUnavailable.description"),
+        variant: "error",
+      })
+      return
+    }
+
+    try {
+      await sendFollowupDraft({
+        client: sdk.client,
+        serverSync,
+        sync,
+        optimisticBusy: true,
+        draft: {
+          sessionID,
+          sessionDirectory: sdk.directory,
+          prompt: [{ type: "text", content, start: 0, end: content.length }],
+          context: [],
+          agent: currentAgent.name,
+          model: DOMAIN_MODEL,
+        },
+      })
+      focusInput()
+    } catch (error) {
+      showToast({
+        title: language.t("toast.session.domain.failed.title"),
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+        variant: "error",
+      })
+    }
+  }
+
+  const leveragePairs = () =>
+    submitDomainAction(
+      [
+        "Analyze the best leverage trading pairs right now.",
+        "Use the available MCP and domain tools before deciding.",
+        "Return the single best current opportunity or a no-trade decision.",
+        "Include rationale, main risks, and the next step.",
+      ].join("\n"),
+    )
+
+  const bestRaviBet = () =>
+    submitDomainAction(
+      [
+        "Analyze the best current ravi betting opportunity.",
+        "Use the available MCP and domain tools before deciding.",
+        "Return the single best bet or a no-bet decision.",
+        "Include rationale, expected edge or confidence, main risks, and the next step.",
+      ].join("\n"),
+    )
 
   const isAutoAcceptActive = () => {
     const sessionID = params.id
@@ -567,6 +648,23 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }),
   ]
 
+  const domainCmds = () => [
+    sessionCommand({
+      id: "session.domain.leveragePairs",
+      title: language.t("command.session.domain.leveragePairs"),
+      description: language.t("command.session.domain.leveragePairs.description"),
+      disabled: !params.id,
+      onSelect: leveragePairs,
+    }),
+    sessionCommand({
+      id: "session.domain.bestRaviBet",
+      title: language.t("command.session.domain.bestRaviBet"),
+      description: language.t("command.session.domain.bestRaviBet.description"),
+      disabled: !params.id,
+      onSelect: bestRaviBet,
+    }),
+  ]
+
   command.register("session", () => [
     ...sessionCmds(),
     ...shareCmds(),
@@ -579,5 +677,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     ...mcpCmds(),
     ...agentCmds(),
     ...permissionsCmds(),
+    ...domainCmds(),
   ])
 }

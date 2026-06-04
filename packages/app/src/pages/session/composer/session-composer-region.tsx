@@ -2,6 +2,7 @@ import { Show, createEffect, createMemo, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useNavigate } from "@solidjs/router"
 import { useSpring } from "@opencode-ai/ui/motion-spring"
+import { useCommand } from "@/context/command"
 import { useLayout } from "@/context/layout"
 import { PromptInput } from "@/components/prompt-input"
 import { useLanguage } from "@/context/language"
@@ -48,6 +49,7 @@ export function SessionComposerRegion(props: {
   }
   setPromptDockRef: (el: HTMLDivElement) => void
 }) {
+  const command = useCommand()
   const navigate = useNavigate()
   const layout = useLayout()
   const prompt = usePrompt()
@@ -262,18 +264,38 @@ export function SessionComposerRegion(props: {
                 when={child()}
                 fallback={
                   <Show when={!props.state.blocked()}>
-                    <PromptInput
-                      variant={props.placement === "inline" ? "new-session" : undefined}
-                      ref={props.inputRef}
-                      newSessionWorktree={props.newSessionWorktree}
-                      onNewSessionWorktreeReset={props.onNewSessionWorktreeReset}
-                      edit={props.followup?.edit}
-                      onEditLoaded={props.followup?.onEditLoaded}
-                      shouldQueue={props.followup?.queue}
-                      onQueue={props.followup?.onQueue}
-                      onAbort={props.followup?.onAbort}
-                      onSubmit={props.onSubmit}
-                    />
+                    <div class="space-y-2">
+                      <Show when={route.params.id}>
+                        <div class="flex flex-wrap gap-2 px-1">
+                          <button
+                            type="button"
+                            class="rounded-md border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
+                            onClick={() => command.trigger("session.domain.leveragePairs")}
+                          >
+                            {language.t("command.session.domain.leveragePairs")}
+                          </button>
+                          <button
+                            type="button"
+                            class="rounded-md border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
+                            onClick={() => command.trigger("session.domain.bestRaviBet")}
+                          >
+                            {language.t("command.session.domain.bestRaviBet")}
+                          </button>
+                        </div>
+                      </Show>
+                      <PromptInput
+                        variant={props.placement === "inline" ? "new-session" : undefined}
+                        ref={props.inputRef}
+                        newSessionWorktree={props.newSessionWorktree}
+                        onNewSessionWorktreeReset={props.onNewSessionWorktreeReset}
+                        edit={props.followup?.edit}
+                        onEditLoaded={props.followup?.onEditLoaded}
+                        shouldQueue={props.followup?.queue}
+                        onQueue={props.followup?.onQueue}
+                        onAbort={props.followup?.onAbort}
+                        onSubmit={props.onSubmit}
+                      />
+                    </div>
                   </Show>
                 }
               >

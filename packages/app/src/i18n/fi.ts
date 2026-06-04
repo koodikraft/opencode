@@ -47,6 +47,12 @@ export const dict = {
   "command.review.toggle": "Näytä tai piilota tarkistus",
   "command.session.share": "Jaa istunto",
   "command.session.share.description": "Jaa tämä istunto ja kopioi URL leikepöydälle",
+  "command.session.domain.leveragePairs": "Vivutusparit",
+  "command.session.domain.leveragePairs.description":
+    "Analysoi paras vivutuskaupan pari nopealla DeepSeek-reitillä.",
+  "command.session.domain.bestRaviBet": "Paras raviveto",
+  "command.session.domain.bestRaviBet.description":
+    "Analysoi paras tämänhetkinen ravivedonlyöntikohde nopealla DeepSeek-reitillä.",
   "command.tab.close": "Sulje välilehti",
   "command.terminal.new": "Uusi terminaali",
   "command.terminal.new.description": "Luo uusi terminaalivälilehti",
@@ -580,6 +586,13 @@ export const dict = {
   "toast.session.share.success.description": "Jako-URL kopioitu leikepöydälle!",
   "toast.session.share.failed.title": "Istunnon jakaminen epäonnistui",
   "toast.session.share.failed.description": "Istuntoa jaettaessa tapahtui virhe",
+  "toast.session.domain.unavailable.title": "Toiminto ei ole käytettävissä",
+  "toast.session.domain.unavailable.description":
+    "Avaa istunto ja varmista, että agentti on aktiivinen ennen tämän toiminnon suorittamista.",
+  "toast.session.domain.modelUnavailable.title": "Malli ei ole käytettävissä",
+  "toast.session.domain.modelUnavailable.description":
+    "Yhdistä opencode-go/deepseek-v4-flash ennen tämän toiminnon suorittamista.",
+  "toast.session.domain.failed.title": "Toiminnon suorittaminen epäonnistui",
   "session.delete.failed.title": "Istunnon poistaminen epäonnistui",
   "session.delete.title": "Poista istunto",
   "session.delete.confirm": "Poistetaanko istunto \"{{name}}\"?",

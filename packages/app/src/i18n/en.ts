@@ -88,6 +88,12 @@ export const dict = {
   "command.session.fork.description": "Create a new session from a previous message",
   "command.session.share": "Share session",
   "command.session.share.description": "Share this session and copy the URL to clipboard",
+  "command.session.domain.leveragePairs": "Leverage pairs",
+  "command.session.domain.leveragePairs.description":
+    "Analyze the best leverage trading pair with the fast DeepSeek route.",
+  "command.session.domain.bestRaviBet": "Best ravi bet",
+  "command.session.domain.bestRaviBet.description":
+    "Analyze the best current ravi betting opportunity with the fast DeepSeek route.",
   "command.session.unshare": "Unshare session",
   "command.session.unshare.description": "Stop sharing this session",
 
@@ -452,6 +458,12 @@ export const dict = {
   "toast.session.share.success.description": "Share URL copied to clipboard!",
   "toast.session.share.failed.title": "Failed to share session",
   "toast.session.share.failed.description": "An error occurred while sharing the session",
+  "toast.session.domain.unavailable.title": "Domain action unavailable",
+  "toast.session.domain.unavailable.description": "Open a session with an active agent before running this action.",
+  "toast.session.domain.modelUnavailable.title": "Model unavailable",
+  "toast.session.domain.modelUnavailable.description":
+    "Connect opencode-go/deepseek-v4-flash before running this action.",
+  "toast.session.domain.failed.title": "Domain action failed",
 
   "toast.session.unshare.success.title": "Session unshared",
   "toast.session.unshare.success.description": "Session unshared successfully!",
