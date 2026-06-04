@@ -183,6 +183,24 @@ export function SessionComposerRegion(props: {
         </Show>
 
         <Show when={showComposer()}>
+          <Show when={route.params.id}>
+            <div class="flex flex-wrap gap-2 px-0 pb-2">
+              <button
+                type="button"
+                class="rounded-none border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
+                onClick={() => command.trigger("session.domain.leveragePairs")}
+              >
+                {language.t("command.session.domain.leveragePairs")}
+              </button>
+              <button
+                type="button"
+                class="rounded-none border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
+                onClick={() => command.trigger("session.domain.bestRaviBet")}
+              >
+                {language.t("command.session.domain.bestRaviBet")}
+              </button>
+            </div>
+          </Show>
           <Show
             when={prompt.ready()}
             fallback={
@@ -265,24 +283,6 @@ export function SessionComposerRegion(props: {
                 fallback={
                   <Show when={!props.state.blocked()}>
                     <div class="space-y-2">
-                      <Show when={route.params.id}>
-                        <div class="flex flex-wrap gap-2 px-1">
-                          <button
-                            type="button"
-                            class="rounded-none border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
-                            onClick={() => command.trigger("session.domain.leveragePairs")}
-                          >
-                            {language.t("command.session.domain.leveragePairs")}
-                          </button>
-                          <button
-                            type="button"
-                            class="rounded-none border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
-                            onClick={() => command.trigger("session.domain.bestRaviBet")}
-                          >
-                            {language.t("command.session.domain.bestRaviBet")}
-                          </button>
-                        </div>
-                      </Show>
                       <PromptInput
                         variant={props.placement === "inline" ? "new-session" : undefined}
                         ref={props.inputRef}
