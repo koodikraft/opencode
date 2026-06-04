@@ -188,7 +188,8 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     submitDomainAction(
       [
         "Analyze the best leverage trading pairs right now.",
-        "Use the available MCP and domain tools before deciding.",
+        "Call `best_leverage_pairs` first for a quick scan.",
+        "If more detail is needed, use `multiply_analyze` on specific tickers.",
         "Return the single best current opportunity or a no-trade decision.",
         "Include rationale, main risks, and the next step.",
       ].join("\n"),
@@ -198,7 +199,8 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     submitDomainAction(
       [
         "Analyze the best current ravi betting opportunity.",
-        "Use the available MCP and domain tools before deciding.",
+        "Call `best_ravi_bet` first for a quick scan.",
+        "If more detail is needed, use `ravi_analyze_live` on specific races.",
         "Return the single best bet or a no-bet decision.",
         "Include rationale, expected edge or confidence, main risks, and the next step.",
       ].join("\n"),
