@@ -1,3 +1,7 @@
+// Ownership boundary: OpenCode owns provider selection, session orchestration, and UI.
+// AI Agent (mcp_server.py) owns domain data, scoring, proposals, and backend state.
+// DomainPolicy is the sole policy owner for routing domain requests to the correct provider.
+
 import type { Agent } from "@/agent/agent"
 import { Effect } from "effect"
 import type { ModelMessage } from "ai"
