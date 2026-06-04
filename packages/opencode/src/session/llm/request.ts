@@ -10,6 +10,7 @@ import type { Provider } from "@/provider/provider"
 import { ProviderTransform } from "@/provider/transform"
 import { SystemPrompt } from "../system"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import { DomainPolicy } from "../domain-policy"
 import { Effect, Record } from "effect"
 import { jsonSchema, tool as aiTool, type ModelMessage, type Tool } from "ai"
 import type { Plugin } from "@/plugin"
@@ -137,6 +138,13 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
       headers: {},
     },
   )
+
+  const isDomain = DomainPolicy.isDomainAction(input.agent, input.agent.name, input.messages)
+  if (isDomain) {
+    ;(headers as Record<string, string>)["x-domain-intent"] = "true"
+    if (!params.options) params.options = {}
+    params.options.domainAction = true
+  }
 
   const tools = resolveTools(input)
   if (
