@@ -269,14 +269,14 @@ export function SessionComposerRegion(props: {
                         <div class="flex flex-wrap gap-2 px-1">
                           <button
                             type="button"
-                            class="rounded-md border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
+                            class="rounded-none border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
                             onClick={() => command.trigger("session.domain.leveragePairs")}
                           >
                             {language.t("command.session.domain.leveragePairs")}
                           </button>
                           <button
                             type="button"
-                            class="rounded-md border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
+                            class="rounded-none border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
                             onClick={() => command.trigger("session.domain.bestRaviBet")}
                           >
                             {language.t("command.session.domain.bestRaviBet")}
