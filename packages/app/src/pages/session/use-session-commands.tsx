@@ -139,35 +139,8 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       return
     }
 
-    try {
-      const currentModel = local.model.current()
-      if (!currentModel) {
-        showToast({ title: "No model", description: "No model selected", variant: "error" })
-        return
-      }
-      const modelRef = { modelID: currentModel.id, providerID: currentModel.provider.id }
-      const partID = Identifier.ascending("part")
-      const messageID = Identifier.ascending("message")
-      sync.set("session_status", sessionID, { type: "busy" })
-      sync.session.optimistic.add({
-        directory: sdk.directory, sessionID,
-        message: { id: messageID, sessionID, role: "user", time: { created: Date.now() }, agent: currentAgent.name, model: modelRef },
-        parts: [{ type: "text", id: partID, text: content, sessionID, messageID }],
-      })
-      await sdk.client.session.promptAsync({
-        sessionID, agent: currentAgent.name, model: modelRef, messageID,
-        parts: [{ type: "text", id: partID, text: content }],
-      })
-      sync.set("session_status", sessionID, { type: "idle" })
-      focusInput()
-    } catch (error) {
-      sync.set("session_status", sessionID, { type: "idle" })
-      showToast({
-        title: language.t("toast.session.domain.failed.title"),
-        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
-        variant: "error",
-      })
-    }
+    prompt.set([{ type: "text", content, start: 0, end: content.length }])
+    focusInput()
   }
 
   const leveragePairs = () =>
