@@ -92,9 +92,20 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
   const options = mergeOptions(mergeOptions(mergeOptions(base, input.model.options), input.agent.options), variant)
   if (isOpenaiOauth) options.instructions = system.join("\n")
 
+  const isDomain = DomainPolicy.isDomainAction(input.agent, input.agent.name, input.messages)
+  const cleanedMessages = isDomain
+    ? input.messages.map((m) => {
+        if (m.role !== "user" || typeof m.content === "string") return m
+        const nonImage = m.content.filter((p) => p.type !== "image" && p.type !== "file")
+        if (nonImage.length === m.content.length) return m
+        if (nonImage.length === 0) return { ...m, content: "[Image omitted — domain model does not support image input]" }
+        return { ...m, content: nonImage }
+      })
+    : input.messages
+
   const messages =
     isOpenaiOauth || input.isWorkflow
-      ? input.messages
+      ? cleanedMessages
       : [
           ...system.map(
             (x): ModelMessage => ({
@@ -102,7 +113,7 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
               content: x,
             }),
           ),
-          ...input.messages,
+          ...cleanedMessages,
         ]
 
   const params = yield* input.plugin.trigger(
@@ -139,7 +150,6 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     },
   )
 
-  const isDomain = DomainPolicy.isDomainAction(input.agent, input.agent.name, input.messages)
   if (isDomain) {
     ;(headers as Record<string, string>)["x-domain-intent"] = "true"
     if (!params.options) params.options = {}
