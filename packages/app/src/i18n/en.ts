@@ -94,6 +94,12 @@ export const dict = {
   "command.session.domain.bestRaviBet": "Best ravi bet",
   "command.session.domain.bestRaviBet.description":
     "Analyze the best current ravi betting opportunity with the fast DeepSeek route.",
+  "command.session.domain.bestInvestment": "Best investment",
+  "command.session.domain.bestInvestment.description":
+    "Analyze the best current investment opportunity with the fast DeepSeek route.",
+  "command.session.domain.bestSportsBet": "Best sports bet",
+  "command.session.domain.bestSportsBet.description":
+    "Analyze the best current sports betting opportunity with the fast DeepSeek route.",
   "command.session.unshare": "Unshare session",
   "command.session.unshare.description": "Stop sharing this session",
 

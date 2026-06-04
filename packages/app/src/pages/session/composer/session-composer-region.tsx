@@ -199,6 +199,20 @@ export function SessionComposerRegion(props: {
               >
                 {language.t("command.session.domain.bestRaviBet")}
               </button>
+              <button
+                type="button"
+                class="rounded-none border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
+                onClick={() => command.trigger("session.domain.bestInvestment")}
+              >
+                {language.t("command.session.domain.bestInvestment")}
+              </button>
+              <button
+                type="button"
+                class="rounded-none border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
+                onClick={() => command.trigger("session.domain.bestSportsBet")}
+              >
+                {language.t("command.session.domain.bestSportsBet")}
+              </button>
             </div>
           </Show>
           <Show

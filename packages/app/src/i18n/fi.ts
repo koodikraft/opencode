@@ -53,6 +53,12 @@ export const dict = {
   "command.session.domain.bestRaviBet": "Paras raviveto",
   "command.session.domain.bestRaviBet.description":
     "Analysoi paras tämänhetkinen ravivedonlyöntikohde nopealla DeepSeek-reitillä.",
+  "command.session.domain.bestInvestment": "Paras sijoitus",
+  "command.session.domain.bestInvestment.description":
+    "Analysoi paras tämänhetkinen sijoituskohde nopealla DeepSeek-reitillä.",
+  "command.session.domain.bestSportsBet": "Paras urheiluveto",
+  "command.session.domain.bestSportsBet.description":
+    "Analysoi paras tämänhetkinen urheiluvedonlyöntikohde nopealla DeepSeek-reitillä.",
   "command.tab.close": "Sulje välilehti",
   "command.terminal.new": "Uusi terminaali",
   "command.terminal.new.description": "Luo uusi terminaalivälilehti",

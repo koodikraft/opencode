@@ -206,6 +206,26 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       ].join("\n"),
     )
 
+  const bestInvestment = () =>
+    submitDomainAction(
+      [
+        "Analyze the best current investment opportunity (stock or crypto).",
+        "Call `best_investment` first for a quick scan, or use `investment_analyze` on a specific ticker.",
+        "Return the single best opportunity or a no-trade decision.",
+        "Include rationale, main risks, and the next step.",
+      ].join("\n"),
+    )
+
+  const bestSportsBet = () =>
+    submitDomainAction(
+      [
+        "Analyze the best current sports betting opportunity.",
+        "Call `best_sports_bet` first for a quick scan, or use `sports_analyze` on specific teams.",
+        "Return the single best bet or a no-bet decision.",
+        "Include rationale, expected edge or confidence, main risks, and the next step.",
+      ].join("\n"),
+    )
+
   const isAutoAcceptActive = () => {
     const sessionID = params.id
     if (sessionID) return permission.isAutoAccepting(sessionID, sdk.directory)
@@ -664,6 +684,20 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       description: language.t("command.session.domain.bestRaviBet.description"),
       disabled: !params.id,
       onSelect: bestRaviBet,
+    }),
+    sessionCommand({
+      id: "session.domain.bestInvestment",
+      title: language.t("command.session.domain.bestInvestment"),
+      description: language.t("command.session.domain.bestInvestment.description"),
+      disabled: !params.id,
+      onSelect: bestInvestment,
+    }),
+    sessionCommand({
+      id: "session.domain.bestSportsBet",
+      title: language.t("command.session.domain.bestSportsBet"),
+      description: language.t("command.session.domain.bestSportsBet.description"),
+      disabled: !params.id,
+      onSelect: bestSportsBet,
     }),
   ]
 

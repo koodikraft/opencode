@@ -16,9 +16,9 @@ const FALLBACK_MODEL = {
   modelID: "deepseek-v4-flash",
 } as const
 
-const DOMAIN_AGENT_SUBSTRINGS = ["leverage", "ravi", "domain-", "domain/"] as const
+const DOMAIN_AGENT_SUBSTRINGS = ["leverage", "ravi", "invest", "sport", "domain-", "domain/"] as const
 
-const DOMAIN_MESSAGE_TRIGGERS = ["leverage pairs", "best ravi bet", "domain:"] as const
+const DOMAIN_MESSAGE_TRIGGERS = ["leverage pairs", "best ravi bet", "best investment", "best sports bet", "domain:"] as const
 
 export const DOMAIN_ANSWER_SHAPE = [
   "## Best Candidate",
