@@ -49,3 +49,27 @@ test("domainModel returns the expected fast domain route", () => {
   expect(model.providerID).toBe("opencode-go")
   expect(model.modelID).toBe("deepseek-v4-flash")
 })
+
+test("fallbackModel returns ollama route", () => {
+  const model = DomainPolicy.fallbackModel()
+  expect(model.providerID).toBe("ollama")
+  expect(model.modelID).toBe("deepseek-v4-flash")
+})
+
+test("isRoutedToDomainModel detects domain route", () => {
+  expect(DomainPolicy.isRoutedToDomainModel("opencode-go", "deepseek-v4-flash")).toBe(true)
+  expect(DomainPolicy.isRoutedToDomainModel("ollama", "deepseek-v4-flash")).toBe(false)
+  expect(DomainPolicy.isRoutedToDomainModel("opencode-go", "other-model")).toBe(false)
+})
+
+test("isDegradedFallback detects fallback route", () => {
+  expect(DomainPolicy.isDegradedFallback("ollama", "deepseek-v4-flash")).toBe(true)
+  expect(DomainPolicy.isDegradedFallback("opencode-go", "deepseek-v4-flash")).toBe(false)
+})
+
+test("DOMAIN_ANSWER_SHAPE contains expected sections", () => {
+  expect(DomainPolicy.DOMAIN_ANSWER_SHAPE).toContain("Best Candidate")
+  expect(DomainPolicy.DOMAIN_ANSWER_SHAPE).toContain("Rationale")
+  expect(DomainPolicy.DOMAIN_ANSWER_SHAPE).toContain("Main Risks")
+  expect(DomainPolicy.DOMAIN_ANSWER_SHAPE).toContain("Next Step")
+})

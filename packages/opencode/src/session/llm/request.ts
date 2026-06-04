@@ -93,6 +93,13 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
   if (isOpenaiOauth) options.instructions = system.join("\n")
 
   const isDomain = DomainPolicy.isDomainAction(input.agent, input.agent.name, input.messages)
+  if (isDomain) {
+    yield* DomainPolicy.logDomainRouting(input.model.providerID, input.model.id)
+    if (DomainPolicy.isDegradedFallback(input.model.providerID, input.model.id)) {
+      system[0] = [system[0], "", "[System Note: Domain provider unavailable. Running on degraded fallback. Answers may be less accurate.]"].join("\n")
+    }
+    system.push("", "## Response Format", DomainPolicy.DOMAIN_ANSWER_SHAPE)
+  }
   const cleanedMessages = isDomain
     ? input.messages.map((m) => {
         if (m.role !== "user" || typeof m.content === "string") return m
