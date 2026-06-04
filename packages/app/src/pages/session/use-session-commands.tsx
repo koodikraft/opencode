@@ -164,7 +164,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       })
       focusInput()
     } catch (error) {
-      sync.set("session_status", sessionID, { type: "idle" })
       showToast({
         title: language.t("toast.session.domain.failed.title"),
         description: error instanceof Error ? error.message : language.t("common.requestFailed"),
