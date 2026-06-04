@@ -177,8 +177,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       })
       await sdk.client.session.promptAsync({
         sessionID,
-        agent: currentAgent.name,
-        model: DOMAIN_MODEL,
         messageID,
         parts: [{ type: "text", id: "p1", text: content }],
       })
