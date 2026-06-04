@@ -173,12 +173,12 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
           agent: currentAgent.name,
           model: DOMAIN_MODEL,
         },
-        parts: [{ type: "text", id: "p1", text: content, sessionID, messageID }],
+        parts: [{ type: "text", id: "prt1", text: content, sessionID, messageID }],
       })
       await sdk.client.session.promptAsync({
         sessionID,
         messageID,
-        parts: [{ type: "text", id: "p1", text: content }],
+        parts: [{ type: "text", id: "prt1", text: content }],
       })
       focusInput()
     } catch (error) {
