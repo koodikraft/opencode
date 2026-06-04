@@ -141,8 +141,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }
 
     try {
-      const sessionInfo = sync.session.get(sessionID)
-      const sessionModel = sessionInfo?.model
+      const currentModel = local.model.current()
       await sendFollowupDraft({
         client: sdk.client,
         serverSync,
@@ -153,7 +152,9 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
           prompt: [{ type: "text", content, start: 0, end: content.length }],
           context: [],
           agent: currentAgent.name,
-          model: currentAgent.model ?? { providerID: sessionModel?.providerID ?? "", modelID: sessionModel?.id ?? "" },
+          model: currentModel
+            ? { modelID: currentModel.id, providerID: currentModel.provider.id }
+            : currentAgent.model ?? { providerID: "", modelID: "" },
         },
       })
       focusInput()
