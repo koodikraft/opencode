@@ -183,8 +183,7 @@ export function SessionComposerRegion(props: {
         </Show>
 
         <Show when={showComposer()}>
-          <Show when={route.params.id}>
-            <div class="flex flex-wrap gap-2 px-0 pb-2">
+          <div class="flex flex-wrap gap-2 px-0 pb-2">
               <button
                 type="button"
                 class="rounded-none border border-border-weak-base bg-background-base px-3 py-1.5 text-13-medium text-text-base transition-colors hover:bg-background-strong"
@@ -214,7 +213,6 @@ export function SessionComposerRegion(props: {
                 {language.t("command.session.domain.bestSportsBet")}
               </button>
             </div>
-          </Show>
           <Show
             when={prompt.ready()}
             fallback={
