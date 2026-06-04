@@ -21,6 +21,7 @@ import { extractPromptFromParts } from "@/utils/prompt"
 import { UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { Identifier } from "@/utils/id"
+import { sendFollowupDraft } from "@/components/prompt-input/submit"
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
@@ -140,27 +141,20 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }
 
     try {
-      sync.set("session_status", sessionID, { type: "busy" })
-      const partID = Identifier.ascending("part")
-      const messageID = Identifier.ascending("message")
-      sync.session.optimistic.add({
-        directory: sdk.directory,
-        sessionID,
-        message: {
-          id: messageID,
+      const sessionInfo = sync.session.get(sessionID)
+      const sessionModel = sessionInfo?.model
+      await sendFollowupDraft({
+        client: sdk.client,
+        serverSync,
+        sync,
+        draft: {
           sessionID,
-          role: "user",
-          time: { created: Date.now() },
+          sessionDirectory: sdk.directory,
+          prompt: [{ type: "text", content, start: 0, end: content.length }],
+          context: [],
           agent: currentAgent.name,
-          model: { providerID: "", modelID: "" },
+          model: currentAgent.model ?? { providerID: sessionModel?.providerID ?? "", modelID: sessionModel?.id ?? "" },
         },
-        parts: [{ type: "text", id: partID, text: content, sessionID, messageID }],
-      })
-      await sdk.client.session.promptAsync({
-        sessionID,
-        agent: currentAgent.name,
-        messageID,
-        parts: [{ type: "text", id: partID, text: content }],
       })
       focusInput()
     } catch (error) {
