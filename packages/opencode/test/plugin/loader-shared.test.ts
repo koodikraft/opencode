@@ -7,6 +7,7 @@ import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { disposeAllInstances, provideInstance, testInstanceStoreLayer, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
+import type { Interface as PluginInterface } from "../../src/plugin/index"
 
 const { Plugin } = await import("../../src/plugin/index")
 const { PluginLoader } = await import("../../src/plugin/loader")
@@ -65,6 +66,42 @@ function load(dir: string, flags?: Parameters<typeof RuntimeFlags.layer>[0]) {
       provideInstance(dir),
     )
   })
+}
+
+function service<A, E>(
+  dir: string,
+  body: (plugin: PluginInterface) => Effect.Effect<A, E, never>,
+  flags?: Parameters<typeof RuntimeFlags.layer>[0],
+): Effect.Effect<A, E, never> {
+  const source = path.join(dir, "opencode.json")
+  return Effect.gen(function* () {
+    const config = yield* Effect.promise(
+      () => Bun.file(source).json() as Promise<{ plugin?: Array<string | [string, Record<string, unknown>]> }>,
+    )
+    const plugins = config.plugin ?? []
+    return yield* Effect.gen(function* () {
+      const plugin = yield* Plugin.Service
+      return yield* body(plugin)
+    }).pipe(
+      Effect.provide(
+        Plugin.layer.pipe(
+          Layer.provide(EventV2Bridge.defaultLayer),
+          Layer.provide(RuntimeFlags.layer({ disableDefaultPlugins: true, ...flags })),
+          Layer.provide(
+            TestConfig.layer({
+              get: () =>
+                Effect.succeed({
+                  plugin: plugins,
+                  plugin_origins: plugins.map((plugin) => ({ spec: plugin, source, scope: "local" as const })),
+                }),
+              directories: () => Effect.succeed([dir]),
+            }),
+          ),
+        ),
+      ),
+      provideInstance(dir),
+    )
+  }) as unknown as Effect.Effect<A, E, never>
 }
 
 describe("plugin.loader.shared", () => {
@@ -227,6 +264,133 @@ describe("plugin.loader.shared", () => {
             "    return {}",
             "  },",
             "  tui: async () => {},",
+            "}",
+            "",
+          ].join("\n"),
+        )
+
+        await Bun.write(
+          path.join(dir, "opencode.json"),
+          JSON.stringify({ plugin: [pathToFileURL(file).href] }, null, 2),
+        )
+
+        return { mark }
+      },
+      (tmp) =>
+        Effect.gen(function* () {
+          yield* load(tmp.path)
+          const called = yield* Effect.promise(() =>
+            Bun.file(tmp.extra.mark)
+              .text()
+              .then(() => true)
+              .catch(() => false),
+          )
+
+          expect(called).toBe(false)
+        }),
+    ),
+  )
+
+  it.live("blocks shell.env hook when manifest is missing domain automation capability", () =>
+    withTmp(
+      async (dir) => {
+        const file = path.join(dir, "plugin.ts")
+        await Bun.write(
+          file,
+          [
+            "export default {",
+            '  id: "demo.blocked-capability",',
+            "  manifest: {",
+            '    capabilities: ["tool"],',
+            '    permissions: ["shell"],',
+            "  },",
+            "  server: async () => ({",
+            '    "shell.env": async (_input, output) => {',
+            '      output.env.BLOCKED = "1"',
+            "    },",
+            "  }),",
+            "}",
+            "",
+          ].join("\n"),
+        )
+
+        await Bun.write(
+          path.join(dir, "opencode.json"),
+          JSON.stringify({ plugin: [pathToFileURL(file).href] }, null, 2),
+        )
+      },
+      (tmp) =>
+        service(tmp.path, (plugin) =>
+          Effect.gen(function* () {
+            const inspect = yield* plugin.inspect()
+            expect(inspect[0]?.blockedHooks).toEqual(["shell.env"])
+
+            const output = { env: {} as Record<string, string> }
+            yield* plugin.trigger("shell.env", { cwd: tmp.path }, output)
+            expect(output.env).toEqual({})
+          }),
+        ),
+    ),
+  )
+
+  it.live("blocks shell.env hook when manifest is missing shell permission", () =>
+    withTmp(
+      async (dir) => {
+        const file = path.join(dir, "plugin.ts")
+        await Bun.write(
+          file,
+          [
+            "export default {",
+            '  id: "demo.blocked-permission",',
+            "  manifest: {",
+            '    capabilities: ["domain.automation"],',
+            "  },",
+            "  server: async () => ({",
+            '    "shell.env": async (_input, output) => {',
+            '      output.env.BLOCKED = "1"',
+            "    },",
+            "  }),",
+            "}",
+            "",
+          ].join("\n"),
+        )
+
+        await Bun.write(
+          path.join(dir, "opencode.json"),
+          JSON.stringify({ plugin: [pathToFileURL(file).href] }, null, 2),
+        )
+      },
+      (tmp) =>
+        service(tmp.path, (plugin) =>
+          Effect.gen(function* () {
+            const inspect = yield* plugin.inspect()
+            expect(inspect[0]?.blockedHooks).toEqual(["shell.env"])
+
+            const output = { env: {} as Record<string, string> }
+            yield* plugin.trigger("shell.env", { cwd: tmp.path }, output)
+            expect(output.env).toEqual({})
+          }),
+        ),
+    ),
+  )
+
+  it.live("blocks shell access without manifest permission", () =>
+    withTmp(
+      async (dir) => {
+        const file = path.join(dir, "plugin.ts")
+        const mark = path.join(dir, "called.txt")
+        await Bun.write(
+          file,
+          [
+            "export default {",
+            '  id: "demo.shell",',
+            "  manifest: {",
+            '    capabilities: ["tool"],',
+            "  },",
+            "  server: async ({ $ }) => {",
+            `    await $\`echo blocked > ${mark}\``,
+            "    return {}",
+            "  },",
             "}",
             "",
           ].join("\n"),

@@ -1,0 +1,82 @@
+---
+title: Johdanto
+description: Aloita OpenCoden käyttö.
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components"
+import config from "../../../../config.mjs"
+export const console = config.console
+
+[**OpenCode**](/) on avoimen lähdekoodin tekoälykoodausagentti. Se on saatavilla terminaalipohjaisena käyttöliittymänä, desktop-sovelluksena ja IDE-laajennuksena.
+
+![OpenCode TUI opencode-teemalla](../../../assets/lander/screenshot.png)
+
+Aloitetaan.
+
+---
+
+#### Ennen kuin aloitat
+
+Käyttääksesi OpenCodea terminaalissa tarvitset:
+
+1. Modernin terminaaliemulaattorin, kuten:
+   - [WezTerm](https://wezterm.org), monialustainen
+   - [Alacritty](https://alacritty.org), monialustainen
+   - [Ghostty](https://ghostty.org), Linux ja macOS
+   - [Kitty](https://sw.kovidgoyal.net/kitty/), Linux ja macOS
+
+2. API-avaimet niille LLM-palveluntarjoajille, joita haluat käyttää.
+
+---
+
+## Asennus
+
+Helpoin tapa asentaa OpenCode on asennusskriptillä.
+
+```bash
+curl -fsSL https://opencode.ai/install | bash
+```
+
+Voit asentaa sen myös seuraavilla tavoilla:
+
+- **Node.js:n avulla**
+
+        <Tabs>
+
+      <TabItem label="npm">
+      ```bash
+      npm install -g opencode-ai
+      ```
+
+          </TabItem>
+
+        <TabItem label="Bun">
+        ```bash
+        bun install -g opencode-ai
+        ```
+
+          </TabItem>
+
+        <TabItem label="pnpm">
+        ```bash
+        pnpm install -g opencode-ai
+        ```
+
+          </TabItem>
+
+        <TabItem label="Yarn">
+        ```bash
+        yarn global add opencode-ai
+        ```
+
+      </TabItem>
+
+  </Tabs>
+
+- **Homebrewlla macOS:ssa ja Linuxissa**
+
+  ```bash
+  brew install anomalyco/tap/opencode
+  ```
+
+Lisädokumentaatio on toistaiseksi pääosin englanniksi. Voit jatkaa eteenpäin englanninkielisillä sivuilla, jos suomenkielistä versiota kyseisestä artikkelista ei ole vielä saatavilla.

@@ -16,3 +16,16 @@ export const ExamplePlugin: Plugin = async (_ctx) => {
     },
   }
 }
+
+export default {
+  id: "example.plugin",
+  manifest: {
+    kind: "addon",
+    name: "Example Plugin",
+    description: "Example add-on that contributes a custom tool.",
+    capabilities: ["tool"],
+    permissions: ["workspace.read"],
+    workspace: "project",
+  },
+  server: ExamplePlugin,
+}

@@ -11,6 +11,7 @@ import {
   type TuiSlotPlugin,
   type TuiTheme,
 } from "@opencode-ai/plugin/tui"
+import type { PluginCapability, PluginManifest } from "@opencode-ai/plugin"
 import path from "path"
 import { fileURLToPath } from "url"
 import { TuiConfig } from "@/cli/cmd/tui/config/tui"
@@ -53,6 +54,8 @@ type PluginLoad = {
   source: PluginSource | "internal"
   id: string
   module: TuiPluginModule
+  manifest?: PluginManifest
+  legacy?: boolean
   origin: ConfigPlugin.Origin
   plugin_root: string
   theme_files: string[]
@@ -73,8 +76,12 @@ type PluginEntry = {
   themes: Record<string, PluginMeta.Theme>
   plugin: TuiPlugin
   enabled: boolean
+  blocked: string[]
   scope?: PluginScope
 }
+
+const workspacePanelSlots = new Set(["app", "app_bottom", "home_logo", "home_prompt", "home_prompt_right", "home_bottom", "home_footer"])
+const sessionDockSlots = new Set(["session_prompt", "session_prompt_right", "sidebar_title", "sidebar_content", "sidebar_footer"])
 
 const ScopedKeymapMethods = new Set<PropertyKey>([
   "acquireResource",
@@ -371,6 +378,8 @@ function loadInternalPlugin(item: InternalTuiPlugin): PluginLoad {
     source: "internal",
     id: item.id,
     module: item,
+    manifest: item.manifest,
+    legacy: false,
     origin: {
       spec,
       scope: "global",
@@ -517,7 +526,38 @@ function listPluginStatus(state: RuntimeState): TuiPluginStatus[] {
     target: plugin.meta.target,
     enabled: plugin.enabled,
     active: plugin.scope !== undefined,
+    ...(plugin.load.manifest?.name ? { name: plugin.load.manifest.name } : {}),
+    ...(plugin.load.manifest?.kind ? { kind: plugin.load.manifest.kind } : {}),
+    ...(plugin.load.manifest ? { capabilities: plugin.load.manifest.capabilities } : {}),
+    ...(plugin.load.manifest?.permissions ? { permissions: plugin.load.manifest.permissions } : {}),
+    ...(plugin.load.manifest?.workspace ? { workspace: plugin.load.manifest.workspace } : {}),
+    ...(plugin.load.legacy ? { legacy: true } : {}),
+    ...(plugin.blocked.length ? { blocked: [...plugin.blocked] } : {}),
   }))
+}
+
+function hasCapability(manifest: PluginManifest | undefined, capability: PluginCapability) {
+  if (!manifest) return true
+  return manifest.capabilities.includes(capability)
+}
+
+function hasAnyCapability(manifest: PluginManifest | undefined, capabilities: PluginCapability[]) {
+  if (!manifest) return true
+  return capabilities.some((capability) => manifest.capabilities.includes(capability))
+}
+
+function rememberBlocked(plugin: PluginEntry, blocked: string) {
+  if (plugin.blocked.includes(blocked)) return
+  plugin.blocked.push(blocked)
+}
+
+function slotCapabilities(plugin: TuiSlotPlugin): PluginCapability[] {
+  const required = new Set<PluginCapability>()
+  for (const key of Object.keys(plugin.slots)) {
+    if (workspacePanelSlots.has(key)) required.add("ui.workspace.panel")
+    if (sessionDockSlots.has(key)) required.add("ui.session.dock")
+  }
+  return [...required]
 }
 
 async function deactivatePluginEntry(state: RuntimeState, plugin: PluginEntry, persist: boolean) {
@@ -587,6 +627,16 @@ function pluginApi(runtime: RuntimeState, plugin: PluginEntry, scope: PluginScop
 
   const route: TuiPluginApi["route"] = {
     register(list) {
+      if (!hasAnyCapability(load.manifest, ["ui.workspace.panel", "ui.settings"])) {
+        rememberBlocked(plugin, "route.register")
+        warn("tui plugin route registration blocked by manifest capability", {
+          path: load.spec,
+          id: plugin.id,
+          required: ["ui.workspace.panel", "ui.settings"],
+          routes: list.map((item) => item.name),
+        })
+        return () => {}
+      }
       return scope.track(api.route.register(list))
     },
     navigate(name, params) {
@@ -612,10 +662,21 @@ function pluginApi(runtime: RuntimeState, plugin: PluginEntry, scope: PluginScop
   let count = 0
 
   const slots: TuiPluginApi["slots"] = {
-    register(plugin: TuiSlotPlugin) {
+    register(item: TuiSlotPlugin) {
       const id = count ? `${base}:${count}` : base
       count += 1
-      scope.track(host.register({ ...plugin, id }))
+      const denied = slotCapabilities(item).filter((capability) => !hasCapability(load.manifest, capability))
+      if (denied.length) {
+        rememberBlocked(plugin, `slots.register:${Object.keys(item.slots).join(",")}`)
+        warn("tui plugin slot registration blocked by manifest capability", {
+          path: load.spec,
+          id: plugin.id,
+          required: denied,
+          slots: Object.keys(item.slots),
+        })
+        return id
+      }
+      scope.track(host.register({ ...item, id }))
       return id
     },
   }
@@ -729,6 +790,8 @@ async function resolveExternalPlugins(list: ConfigPlugin.Origin[], wait: () => P
         source: loaded.source,
         id,
         module: mod,
+        manifest: loaded.manifest,
+        legacy: loaded.manifest === undefined,
         origin,
         plugin_root: loaded.pkg?.dir ?? resolveRoot(loaded.target),
         theme_files,
@@ -756,6 +819,7 @@ async function resolveExternalPlugins(list: ConfigPlugin.Origin[], wait: () => P
         source: loaded.source,
         id,
         module: EMPTY_TUI,
+        legacy: false,
         origin,
         plugin_root: loaded.pkg?.dir ?? resolveRoot(loaded.target),
         theme_files,
@@ -828,6 +892,7 @@ async function addExternalPluginEntries(state: RuntimeState, ready: PluginLoad[]
       themes,
       plugin: entry.module.tui,
       enabled: true,
+      blocked: [],
     }
     if (!addPluginEntry(state, plugin)) {
       ok = false
@@ -1107,6 +1172,7 @@ async function load(input: { api: Api; config: TuiConfig.Resolved; dispose?: () 
         themes: {},
         plugin: entry.module.tui,
         enabled: item.enabled ?? true,
+        blocked: [],
       })
     }
 

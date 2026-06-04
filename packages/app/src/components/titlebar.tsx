@@ -29,6 +29,7 @@ import {
   SESSION_TABS_REMOVED_EVENT,
   type SessionTabsRemovedDetail,
 } from "@/components/titlebar-session-events"
+import { sessionTitle } from "@/utils/session-title"
 
 type TauriDesktopWindow = {
   startDragging?: () => Promise<void>
@@ -738,8 +739,10 @@ function TabNavItem(props: {
   hideClose?: boolean
   onClose: () => void
 }) {
+  const language = useLanguage()
   const match = useMatch(() => props.href)
   const isActive = () => !!match()
+  const title = createMemo(() => sessionTitle(props.title, language.t("command.session.new")) ?? props.title)
   const closeTab = (event: MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
@@ -761,7 +764,7 @@ function TabNavItem(props: {
         <span data-slot="project-avatar-slot">
           <ProjectTabAvatar project={props.project} directory={props.directory} sessionId={props.sessionId} />
         </span>
-        <span class="min-w-0 flex-1">{props.title}</span>
+        <span class="min-w-0 flex-1">{title()}</span>
       </a>
 
       <div class="absolute not-group-hover:not-group-data-[active=true]:left-52 group-hover:right-0 group-data-[active=true]:right-0 inset-y-0 flex flex-row items-center pr-1 py-1 w-8 pl-2">
@@ -800,6 +803,7 @@ function ProjectTabAvatar(props: { project?: LocalProject; directory: string; se
 }
 
 function NewSessionTabItem(props: { href: string; title: string; onClose: () => void }) {
+  const language = useLanguage()
   const closeTab = (event: MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
@@ -833,7 +837,7 @@ function NewSessionTabItem(props: { href: string; title: string; onClose: () => 
           }}
           onClick={closeTab}
           icon={<IconV2 name="xmark-small" />}
-          aria-label="Close tab"
+          aria-label={language.t("command.tab.close")}
         />
       </div>
     </div>

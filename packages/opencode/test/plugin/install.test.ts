@@ -61,6 +61,7 @@ async function plugin(
   opts?: {
     server?: Record<string, unknown>
     tui?: Record<string, unknown>
+    manifest?: Record<string, unknown>
   },
   themes?: string[],
 ) {
@@ -85,6 +86,25 @@ async function plugin(
       : "./tui.js"
   }
   await fs.mkdir(p, { recursive: true })
+  if (server) {
+    await Bun.write(
+      path.join(p, "server.js"),
+      [
+        "export default {",
+        '  id: "acme",',
+        ...(opts?.manifest ? [`  manifest: ${JSON.stringify(opts.manifest)},`] : []),
+        "  server: async () => ({}),",
+        "}",
+        "",
+      ].join("\n"),
+    )
+  }
+  if (tui) {
+    await Bun.write(
+      path.join(p, "tui.js"),
+      ["export default {", '  id: "acme.tui",', "  tui: async () => {},", "}", ""].join("\n"),
+    )
+  }
   await Bun.write(
     path.join(p, "package.json"),
     JSON.stringify(
@@ -126,6 +146,40 @@ describe("plugin.install.task", () => {
     const tui = await read(path.join(tmp.path, ".opencode", "tui.jsonc"))
     expect(server.plugin).toEqual(["acme@1.2.3"])
     expect(tui.plugin).toEqual(["acme@1.2.3"])
+  })
+
+  test("reports plugin manifest details after install", async () => {
+    await using tmp = await tmpdir()
+    const target = await plugin(tmp.path, ["server"], {
+      manifest: {
+        name: "Acme Plugin",
+        capabilities: ["tool", "domain.automation"],
+        permissions: ["workspace.read", "shell"],
+        workspace: "project",
+      },
+    })
+    const info: string[] = []
+    const run = createPlugTask(
+      {
+        mod: "acme@1.2.3",
+      },
+      {
+        ...deps(path.join(tmp.path, "global"), target),
+        log: {
+          error() {},
+          info: (msg) => info.push(msg),
+          success() {},
+        },
+      },
+    )
+
+    const ok = await run(ctx(tmp.path))
+    expect(ok).toBe(true)
+    expect(info).toContain("Targets: server")
+    expect(info).toContain("Plugin id: acme")
+    expect(info).toContain("Name: Acme Plugin")
+    expect(info).toContain("Capabilities: tool, domain.automation")
+    expect(info).toContain("Permissions: workspace.read, shell")
   })
 
   test("writes default options from exports config metadata", async () => {

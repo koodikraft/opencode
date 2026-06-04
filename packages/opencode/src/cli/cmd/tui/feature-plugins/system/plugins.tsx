@@ -9,14 +9,19 @@ import { useBindings } from "../../keymap"
 const id = "internal:plugin-manager"
 
 function state(api: TuiPluginApi, item: TuiPluginStatus) {
-  if (!item.enabled) {
-    return <span style={{ fg: api.theme.current.textMuted }}>disabled</span>
-  }
+  const tone = !item.enabled
+    ? api.theme.current.textMuted
+    : item.active
+      ? api.theme.current.success
+      : api.theme.current.error
 
   return (
-    <span style={{ fg: item.active ? api.theme.current.success : api.theme.current.error }}>
-      {item.active ? "active" : "inactive"}
-    </span>
+    <box flexDirection="column">
+      <text fg={tone}>{!item.enabled ? "disabled" : item.active ? "active" : "inactive"}</text>
+      <Show when={item.blocked?.length}>
+        <text fg={api.theme.current.warning}>{item.blocked?.join(" | ")}</text>
+      </Show>
+    </box>
   )
 }
 
@@ -26,13 +31,17 @@ function source(spec: string) {
 }
 
 function meta(item: TuiPluginStatus, width: number) {
-  if (item.source === "internal") {
-    if (width >= 120) return "Built-in plugin"
-    return "Built-in"
-  }
-  const next = source(item.spec)
-  if (next) return next
-  return item.spec
+  const base = item.source === "internal" ? (width >= 120 ? "Built-in plugin" : "Built-in") : source(item.spec) || item.spec
+  const labels = [item.kind, item.legacy ? "legacy" : undefined, item.workspace ? `scope:${item.workspace}` : undefined]
+    .filter((item): item is string => Boolean(item))
+    .join(" • ")
+  const caps = item.capabilities?.length
+    ? width >= 120
+      ? `caps: ${item.capabilities.join(", ")}`
+      : `${item.capabilities.length} caps`
+    : undefined
+  const id = item.name && item.name !== item.id ? item.id : undefined
+  return [id, base, labels || undefined, caps].filter((item): item is string => Boolean(item)).join(" • ")
 }
 
 function Install(props: { api: TuiPluginApi }) {
@@ -134,9 +143,9 @@ function Install(props: { api: TuiPluginApi }) {
 
 function row(api: TuiPluginApi, item: TuiPluginStatus, width: number): DialogSelectOption<string> {
   return {
-    title: item.id,
+    title: item.name ?? item.id,
     value: item.id,
-    category: item.source === "internal" ? "Internal" : "External",
+    category: item.source === "internal" ? "Internal" : item.kind ?? "External",
     description: meta(item, width),
     footer: state(api, item),
     disabled: item.id === id,

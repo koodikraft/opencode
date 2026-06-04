@@ -350,6 +350,7 @@ export const dict = {
   "context.usage.clickToView": "컨텍스트를 보려면 클릭",
   "context.usage.view": "컨텍스트 사용량 보기",
   "language.en": "English",
+  "language.fi": "Suomi",
   "language.zh": "简体中文",
   "language.zht": "繁體中文",
   "language.ko": "한국어",

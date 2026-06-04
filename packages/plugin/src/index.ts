@@ -67,6 +67,54 @@ export type PluginInput = {
 
 export type PluginOptions = Record<string, unknown>
 
+export const pluginCapabilities = [
+  "tool",
+  "provider.adapter",
+  "workspace.adapter",
+  "runtime.job",
+  "runtime.review",
+  "memory.context",
+  "ui.settings",
+  "ui.session.dock",
+  "ui.workspace.panel",
+  "operator.action",
+  "domain.automation",
+  "integration.mcp",
+] as const
+
+export type PluginCapability = (typeof pluginCapabilities)[number]
+
+export const pluginPermissions = [
+  "workspace.read",
+  "workspace.write",
+  "workspace.shadow",
+  "memory.read",
+  "memory.write",
+  "provider.route",
+  "network",
+  "shell",
+] as const
+
+export type PluginPermission = (typeof pluginPermissions)[number]
+
+export const pluginKinds = ["addon", "integration", "provider", "workspace", "automation"] as const
+
+export type PluginKind = (typeof pluginKinds)[number]
+
+export const pluginScopes = ["global", "project", "session"] as const
+
+export type PluginScope = (typeof pluginScopes)[number]
+
+export type PluginManifest = {
+  kind?: PluginKind
+  name?: string
+  version?: string
+  description?: string
+  capabilities: PluginCapability[]
+  permissions?: PluginPermission[]
+  workspace?: PluginScope
+}
+
 export type Config = Omit<SDKConfig, "plugin"> & {
   plugin?: Array<string | [string, PluginOptions]>
 }
@@ -75,6 +123,7 @@ export type Plugin = (input: PluginInput, options?: PluginOptions) => Promise<Ho
 
 export type PluginModule = {
   id?: string
+  manifest?: PluginManifest
   server: Plugin
   tui?: never
 }

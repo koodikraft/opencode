@@ -383,6 +383,7 @@ export const dict = {
   "context.usage.view": "檢視上下文用量",
 
   "language.en": "English",
+  "language.fi": "Suomi",
   "language.zh": "简体中文",
   "language.zht": "繁體中文",
   "language.ko": "한국어",

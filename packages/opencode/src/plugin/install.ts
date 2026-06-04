@@ -57,7 +57,7 @@ type Err<C extends string, T> = {
 export type InstallResult = Ok<{ target: string }> | Err<"install_failed", { error: unknown }>
 
 export type ManifestResult =
-  | Ok<{ targets: Target[] }>
+  | Ok<{ targets: Target[]; package: { name?: string; version?: string } }>
   | Err<"manifest_read_failed", { file: string; error: unknown }>
   | Err<"manifest_no_targets", { file: string }>
 
@@ -327,6 +327,11 @@ export async function readPluginManifest(target: string): Promise<ManifestResult
   return {
     ok: true,
     targets: targets.item,
+    package: {
+      name: typeof pkg.item.json.name === "string" && pkg.item.json.name.trim() ? pkg.item.json.name.trim() : undefined,
+      version:
+        typeof pkg.item.json.version === "string" && pkg.item.json.version.trim() ? pkg.item.json.version.trim() : undefined,
+    },
   }
 }
 

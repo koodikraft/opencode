@@ -387,6 +387,7 @@ export const dict = {
   "context.usage.view": "Se kontekstforbruk",
 
   "language.en": "English",
+  "language.fi": "Suomi",
   "language.zh": "简体中文",
   "language.zht": "繁體中文",
   "language.ko": "한국어",

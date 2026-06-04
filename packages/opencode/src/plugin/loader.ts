@@ -3,6 +3,7 @@ import {
   createPluginEntry,
   isDeprecatedPlugin,
   pluginSource,
+  readV1Manifest,
   resolvePluginTarget,
   type PluginKind,
   type PluginPackage,
@@ -10,6 +11,7 @@ import {
 } from "./shared"
 import { ConfigPlugin } from "@/config/plugin"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import type { PluginManifest } from "@opencode-ai/plugin"
 
 export namespace PluginLoader {
   // A normalized plugin declaration derived from config before any filesystem or npm work happens.
@@ -38,6 +40,7 @@ export namespace PluginLoader {
   // A resolved plugin whose module has been imported successfully.
   export type Loaded = Resolved & {
     mod: Record<string, unknown>
+    manifest?: PluginManifest
   }
 
   type Candidate = { origin: ConfigPlugin.Origin; plan: Plan }
@@ -140,7 +143,7 @@ export namespace PluginLoader {
       return { ok: false, error }
     }
     if (!mod) return { ok: false, error: new Error(`Plugin ${row.spec} module is empty`) }
-    return { ok: true, value: { ...row, mod } }
+    return { ok: true, value: { ...row, mod, manifest: readV1Manifest(mod, row.spec) } }
   }
 
   // Run one candidate through the full pipeline: resolve, optionally surface a missing entry,

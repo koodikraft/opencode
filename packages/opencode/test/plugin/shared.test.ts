@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { parsePluginSpecifier } from "../../src/plugin/shared"
+import fs from "fs/promises"
+import { tmpdir } from "os"
+import path from "path"
+import { pathToFileURL } from "url"
+import { PluginLoader } from "../../src/plugin/loader"
+import { parsePluginSpecifier, readPluginManifest } from "../../src/plugin/shared"
 
 describe("parsePluginSpecifier", () => {
   test("parses standard npm package without version", () => {
@@ -83,6 +88,97 @@ describe("parsePluginSpecifier", () => {
     expect(parsePluginSpecifier("npm:@opencode/acme")).toEqual({
       pkg: "@opencode/acme",
       version: "latest",
+    })
+  })
+})
+
+describe("readPluginManifest", () => {
+  test("returns undefined when manifest is absent", () => {
+    expect(readPluginManifest(undefined, "acme")).toBeUndefined()
+  })
+
+  test("reads a valid plugin manifest", () => {
+    expect(
+      readPluginManifest(
+        {
+          kind: "addon",
+          name: "Acme Automation",
+          version: "1.0.0",
+          description: "Adds automation tools",
+          capabilities: ["tool", "domain.automation", "ui.session.dock"],
+          permissions: ["workspace.read", "shell"],
+          workspace: "project",
+        },
+        "acme",
+      ),
+    ).toEqual({
+      kind: "addon",
+      name: "Acme Automation",
+      version: "1.0.0",
+      description: "Adds automation tools",
+      capabilities: ["tool", "domain.automation", "ui.session.dock"],
+      permissions: ["workspace.read", "shell"],
+      workspace: "project",
+    })
+  })
+
+  test("rejects a manifest without capabilities", () => {
+    expect(() => readPluginManifest({ name: "Acme" }, "acme")).toThrow("missing manifest.capabilities")
+  })
+
+  test("rejects unknown capabilities", () => {
+    expect(() => readPluginManifest({ capabilities: ["unknown"] }, "acme")).toThrow(
+      "unknown manifest.capabilities entry unknown",
+    )
+  })
+})
+
+describe("PluginLoader manifest", () => {
+  test("loads validated manifest metadata from a v1 server plugin", async () => {
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "opencode-plugin-"))
+    const file = path.join(dir, "plugin.ts")
+    await Bun.write(
+      file,
+      [
+        "export default {",
+        '  id: "demo.plugin",',
+        "  manifest: {",
+        '    kind: "addon",',
+        '    name: "Demo Plugin",',
+        '    capabilities: ["tool", "ui.settings"],',
+        '    permissions: ["shell"],',
+        '    workspace: "project",',
+        "  },",
+        "  server: async () => ({}),",
+        "}",
+        "",
+      ].join("\n"),
+    )
+
+    const resolved = await PluginLoader.resolve(
+      {
+        spec: pathToFileURL(file).href,
+        options: undefined,
+        deprecated: false,
+      },
+      "server",
+    )
+
+    expect(resolved.ok).toBe(true)
+    if (!resolved.ok) return
+
+    const loaded = await PluginLoader.load(resolved.value)
+    expect(loaded.ok).toBe(true)
+    if (!loaded.ok) return
+
+    expect(loaded.value.manifest).toEqual({
+      kind: "addon",
+      name: "Demo Plugin",
+      version: undefined,
+      description: undefined,
+      capabilities: ["tool", "ui.settings"],
+      permissions: ["shell"],
+      workspace: "project",
     })
   })
 })

@@ -1,13 +1,14 @@
 import * as i18n from "@solid-primitives/i18n"
-import { createEffect, createMemo, createResource } from "solid-js"
+import { I18nProvider } from "@opencode-ai/ui/context"
+import { createContext, createEffect, createMemo, createResource, type Accessor, type ParentProps, useContext } from "solid-js"
 import { createStore } from "solid-js/store"
-import { createSimpleContext } from "@opencode-ai/ui/context"
 import { Persist, persisted } from "@/utils/persist"
 import { dict as en } from "@/i18n/en"
 import { dict as uiEn } from "@opencode-ai/ui/i18n/en"
 
 export type Locale =
   | "en"
+  | "fi"
   | "zh"
   | "zht"
   | "ko"
@@ -36,6 +37,7 @@ function cookie(locale: Locale) {
 
 const LOCALES: readonly Locale[] = [
   "en",
+  "fi",
   "zh",
   "zht",
   "ko",
@@ -57,6 +59,7 @@ const LOCALES: readonly Locale[] = [
 
 const INTL: Record<Locale, string> = {
   en: "en",
+  fi: "fi-FI",
   zh: "zh-Hans",
   zht: "zh-Hant",
   ko: "ko",
@@ -78,6 +81,7 @@ const INTL: Record<Locale, string> = {
 
 const LABEL_KEY: Record<Locale, keyof Dictionary> = {
   en: "language.en",
+  fi: "language.fi",
   zh: "language.zh",
   zht: "language.zht",
   ko: "language.ko",
@@ -104,6 +108,7 @@ const merge = (app: Promise<Source>, ui: Promise<Source>) =>
   Promise.all([app, ui]).then(([a, b]) => ({ ...base, ...i18n.flatten({ ...a.dict, ...b.dict }) }) as Dictionary)
 
 const loaders: Record<Exclude<Locale, "en">, () => Promise<Dictionary>> = {
+  fi: () => merge(import("@/i18n/fi"), import("@opencode-ai/ui/i18n/fi")),
   zh: () => merge(import("@/i18n/zh"), import("@opencode-ai/ui/i18n/zh")),
   zht: () => merge(import("@/i18n/zht"), import("@opencode-ai/ui/i18n/zht")),
   ko: () => merge(import("@/i18n/ko"), import("@opencode-ai/ui/i18n/ko")),
@@ -140,6 +145,7 @@ export function loadLocaleDict(locale: Locale) {
 
 const localeMatchers: Array<{ locale: Locale; match: (language: string) => boolean }> = [
   { locale: "en", match: (language) => language.startsWith("en") },
+  { locale: "fi", match: (language) => language.startsWith("fi") },
   { locale: "zht", match: (language) => language.startsWith("zh") && language.includes("hant") },
   { locale: "zh", match: (language) => language.startsWith("zh") },
   { locale: "ko", match: (language) => language.startsWith("ko") },
@@ -196,47 +202,74 @@ function readStoredLocale() {
 const warm = readStoredLocale() ?? detectLocale()
 if (warm !== "en") void loadDict(warm)
 
-export const { use: useLanguage, provider: LanguageProvider } = createSimpleContext({
-  name: "Language",
-  init: (props: { locale?: Locale }) => {
-    const initial = props.locale ?? readStoredLocale() ?? detectLocale()
-    const [store, setStore, _, ready] = persisted(
-      Persist.global("language", ["language.v1"]),
-      createStore({
-        locale: initial,
-      }),
-    )
+type LanguageContextValue = {
+  ready: Accessor<boolean>
+  locale: Accessor<Locale>
+  intl: Accessor<string>
+  locales: readonly Locale[]
+  label: (value: Locale) => string
+  t: (key: keyof Dictionary, params?: Record<string, string | number | boolean>) => string
+  setLocale: (next: Locale) => void
+}
 
-    const locale = createMemo<Locale>(() => normalizeLocale(store.locale))
-    const intl = createMemo(() => INTL[locale()])
+const fallbackT = i18n.translator(() => base, i18n.resolveTemplate) as LanguageContextValue["t"]
 
-    const [dict] = createResource(locale, loadDict, {
-      initialValue: dicts.get(initial) ?? base,
-    })
+const fallbackLanguage: LanguageContextValue = {
+  ready: () => true,
+  locale: () => "en",
+  intl: () => INTL.en,
+  locales: LOCALES,
+  label: (value) => fallbackT(LABEL_KEY[value]),
+  t: fallbackT,
+  setLocale: () => {},
+}
 
-    const t = i18n.translator(() => dict() ?? base, i18n.resolveTemplate) as (
-      key: keyof Dictionary,
-      params?: Record<string, string | number | boolean>,
-    ) => string
+const Context = createContext<LanguageContextValue>(fallbackLanguage)
 
-    const label = (value: Locale) => t(LABEL_KEY[value])
+export function useLanguage() {
+  return useContext(Context) ?? fallbackLanguage
+}
 
-    createEffect(() => {
-      if (typeof document !== "object") return
-      document.documentElement.lang = locale()
-      document.cookie = cookie(locale())
-    })
+export function LanguageProvider(props: ParentProps<{ locale?: Locale }>) {
+  const initial = props.locale ?? readStoredLocale() ?? detectLocale()
+  const [store, setStore, _, ready] = persisted(
+    Persist.global("language", ["language.v1"]),
+    createStore({
+      locale: initial,
+    }),
+  )
 
-    return {
-      ready,
-      locale,
-      intl,
-      locales: LOCALES,
-      label,
-      t,
-      setLocale(next: Locale) {
-        setStore("locale", normalizeLocale(next))
-      },
-    }
-  },
-})
+  const locale = createMemo<Locale>(() => normalizeLocale(store.locale))
+  const intl = createMemo(() => INTL[locale()])
+
+  const [dict] = createResource(locale, loadDict, {
+    initialValue: dicts.get(initial) ?? base,
+  })
+
+  const t = i18n.translator(() => dict() ?? base, i18n.resolveTemplate) as LanguageContextValue["t"]
+  const label = (value: Locale) => t(LABEL_KEY[value])
+
+  createEffect(() => {
+    if (typeof document !== "object") return
+    document.documentElement.lang = locale()
+    document.cookie = cookie(locale())
+  })
+
+  const value: LanguageContextValue = {
+    ready,
+    locale,
+    intl,
+    locales: LOCALES,
+    label,
+    t,
+    setLocale(next: Locale) {
+      setStore("locale", normalizeLocale(next))
+    },
+  }
+
+  return (
+    <Context.Provider value={value}>
+      <I18nProvider value={{ locale: intl, t }}>{props.children}</I18nProvider>
+    </Context.Provider>
+  )
+}

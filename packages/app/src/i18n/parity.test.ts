@@ -20,8 +20,21 @@ import { dict as tr } from "./tr"
 
 const locales = [ar, br, bs, da, de, es, fr, ja, ko, no, pl, ru, uk, th, tr, zh, zht]
 const keys = ["command.session.previous.unseen", "command.session.next.unseen"] as const
+const keyPattern = /^\s*"([^"]+)":/gm
 
 describe("i18n parity", () => {
+  test("Finnish locale explicitly defines every app key", async () => {
+    const [enSource, fiSource] = await Promise.all([
+      Bun.file(new URL("./en.ts", import.meta.url)).text(),
+      Bun.file(new URL("./fi.ts", import.meta.url)).text(),
+    ])
+    const enKeys = declaredKeys(enSource)
+    const fiKeys = declaredKeys(fiSource)
+    const missing = enKeys.filter((key) => !fiKeys.includes(key))
+
+    expect(missing).toEqual([])
+  })
+
   test("non-English locales translate targeted unseen session keys", () => {
     for (const locale of locales) {
       for (const key of keys) {
@@ -31,3 +44,7 @@ describe("i18n parity", () => {
     }
   })
 })
+
+function declaredKeys(source: string) {
+  return [...source.matchAll(keyPattern)].map((match) => match[1])
+}

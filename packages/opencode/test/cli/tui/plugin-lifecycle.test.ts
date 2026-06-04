@@ -222,3 +222,109 @@ test(
   },
   { timeout: 15000 },
 )
+
+test("blocks route and session slots without required ui capabilities", async () => {
+  const count = { event_add: 0, event_drop: 0, route_add: 0, route_drop: 0, command_add: 0, command_drop: 0 }
+
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      const file = path.join(dir, "blocked-ui-plugin.ts")
+      const spec = pathToFileURL(file).href
+      const marker = path.join(dir, "blocked-slot.txt")
+
+      await Bun.write(
+        file,
+        `import fs from "fs"
+
+export default {
+  id: "demo.blocked.ui",
+  manifest: {
+    capabilities: ["tool"],
+  },
+  tui: async (api) => {
+    api.route.register([{ name: "blocked.route", render: () => null }])
+    api.slots.register({
+      setup: () => { fs.appendFileSync(${JSON.stringify(marker)}, "session\\n") },
+      slots: { sidebar_content() { return null } },
+    })
+  },
+}
+`,
+      )
+
+      return { spec, marker }
+    },
+  })
+
+  const { config, restore } = mockTuiRuntime(tmp.path, [tmp.extra.spec])
+  const api = createTuiPluginApi({ count })
+
+  try {
+    await TuiPluginRuntime.init({ api, config })
+
+    expect(TuiPluginRuntime.list().find((item) => item.id === "demo.blocked.ui")).toMatchObject({
+      id: "demo.blocked.ui",
+      capabilities: ["tool"],
+      blocked: ["route.register", "slots.register:sidebar_content"],
+    })
+    await expect(fs.readFile(tmp.extra.marker, "utf8")).rejects.toThrow()
+  } finally {
+    await TuiPluginRuntime.dispose()
+    restore()
+  }
+})
+
+test("allows workspace panel routes while blocking session dock slots when only workspace capability is declared", async () => {
+  const count = { event_add: 0, event_drop: 0, route_add: 0, route_drop: 0, command_add: 0, command_drop: 0 }
+
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      const file = path.join(dir, "partial-ui-plugin.ts")
+      const spec = pathToFileURL(file).href
+      const marker = path.join(dir, "partial-slot.txt")
+
+      await Bun.write(
+        file,
+        `import fs from "fs"
+
+export default {
+  id: "demo.partial.ui",
+  manifest: {
+    capabilities: ["ui.workspace.panel"],
+  },
+  tui: async (api) => {
+    api.route.register([{ name: "panel.route", render: () => null }])
+    api.slots.register({
+      setup: () => { fs.appendFileSync(${JSON.stringify(marker)}, "workspace\\n") },
+      slots: { home_bottom() { return null } },
+    })
+    api.slots.register({
+      setup: () => { fs.appendFileSync(${JSON.stringify(marker)}, "session\\n") },
+      slots: { sidebar_content() { return null } },
+    })
+  },
+}
+`,
+      )
+
+      return { spec, marker }
+    },
+  })
+
+  const { config, restore } = mockTuiRuntime(tmp.path, [tmp.extra.spec])
+  const api = createTuiPluginApi({ count })
+
+  try {
+    await TuiPluginRuntime.init({ api, config })
+
+    await expect(fs.readFile(tmp.extra.marker, "utf8")).resolves.toContain("workspace")
+    await expect(fs.readFile(tmp.extra.marker, "utf8")).resolves.not.toContain("session")
+    expect(TuiPluginRuntime.list().find((item) => item.id === "demo.partial.ui")).toMatchObject({
+      capabilities: ["ui.workspace.panel"],
+      blocked: ["slots.register:sidebar_content"],
+    })
+  } finally {
+    await TuiPluginRuntime.dispose()
+    restore()
+  }
+})

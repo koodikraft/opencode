@@ -1,5 +1,12 @@
 import path from "path"
 import { fileURLToPath, pathToFileURL } from "url"
+import {
+  pluginCapabilities,
+  pluginKinds,
+  pluginPermissions,
+  pluginScopes,
+  type PluginManifest,
+} from "@opencode-ai/plugin"
 import npa from "npm-package-arg"
 import semver from "semver"
 import { Filesystem } from "@/util/filesystem"
@@ -51,11 +58,80 @@ export type PluginEntry = {
   entry?: string
 }
 
+export type PluginTargetInspection = PluginEntry & {
+  kind: PluginKind
+  id?: string
+  manifest?: PluginManifest
+  legacy: boolean
+}
+
 const INDEX_FILES = ["index.ts", "index.tsx", "index.js", "index.mjs", "index.cjs"]
+const pluginCapabilitySet = new Set<string>(pluginCapabilities)
+const pluginPermissionSet = new Set<string>(pluginPermissions)
+const pluginKindSet = new Set<string>(pluginKinds)
+const pluginScopeSet = new Set<string>(pluginScopes)
+
+function readManifestString(value: unknown, spec: string, field: string) {
+  if (value === undefined) return
+  if (typeof value !== "string") throw new TypeError(`Plugin ${spec} has invalid manifest.${field}`)
+  const next = value.trim()
+  if (!next) throw new TypeError(`Plugin ${spec} has empty manifest.${field}`)
+  return next
+}
+
+function readManifestStringList(
+  value: unknown,
+  spec: string,
+  field: string,
+  allowed: Set<string>,
+  options?: { required?: boolean },
+) {
+  if (value === undefined) {
+    if (options?.required) throw new TypeError(`Plugin ${spec} is missing manifest.${field}`)
+    return
+  }
+  if (!Array.isArray(value)) throw new TypeError(`Plugin ${spec} has invalid manifest.${field}`)
+  const list = value.map((item) => {
+    if (typeof item !== "string") throw new TypeError(`Plugin ${spec} has invalid manifest.${field} entry`)
+    const next = item.trim()
+    if (!next) throw new TypeError(`Plugin ${spec} has empty manifest.${field} entry`)
+    if (!allowed.has(next)) throw new TypeError(`Plugin ${spec} has unknown manifest.${field} entry ${next}`)
+    return next
+  })
+  if (options?.required && list.length === 0) throw new TypeError(`Plugin ${spec} has empty manifest.${field}`)
+  return Array.from(new Set(list))
+}
 
 export function pluginSource(spec: string): PluginSource {
   if (isPathPluginSpec(spec)) return "file"
   return "npm"
+}
+
+export function readPluginManifest(value: unknown, spec: string): PluginManifest | undefined {
+  if (value === undefined) return
+  if (!isRecord(value)) throw new TypeError(`Plugin ${spec} has invalid manifest export`)
+
+  const kind = readManifestString(value.kind, spec, "kind")
+  if (kind && !pluginKindSet.has(kind)) throw new TypeError(`Plugin ${spec} has unknown manifest.kind ${kind}`)
+
+  const workspace = readManifestString(value.workspace, spec, "workspace")
+  if (workspace && !pluginScopeSet.has(workspace)) {
+    throw new TypeError(`Plugin ${spec} has unknown manifest.workspace ${workspace}`)
+  }
+
+  return {
+    kind: kind as PluginManifest["kind"],
+    name: readManifestString(value.name, spec, "name"),
+    version: readManifestString(value.version, spec, "version"),
+    description: readManifestString(value.description, spec, "description"),
+    capabilities: readManifestStringList(value.capabilities, spec, "capabilities", pluginCapabilitySet, {
+      required: true,
+    }) as PluginManifest["capabilities"],
+    permissions: readManifestStringList(value.permissions, spec, "permissions", pluginPermissionSet) as
+      | PluginManifest["permissions"]
+      | undefined,
+    workspace: workspace as PluginManifest["workspace"],
+  }
 }
 
 function resolveExportPath(raw: string, dir: string) {
@@ -301,6 +377,35 @@ export function readV1Plugin(
   }
 
   return value
+}
+
+export function readV1Manifest(mod: Record<string, unknown>, spec: string) {
+  const value = mod.default
+  if (!isRecord(value) || !("manifest" in value)) return
+  return readPluginManifest(value.manifest, spec)
+}
+
+export async function inspectPluginTarget(spec: string, target: string, kind: PluginKind): Promise<PluginTargetInspection | undefined> {
+  const entry = await createPluginEntry(spec, target, kind)
+  if (!entry.entry) return
+
+  const mod = await import(entry.entry)
+  const plugin = readV1Plugin(mod, spec, kind, "detect")
+  if (!plugin) {
+    return {
+      ...entry,
+      kind,
+      legacy: true,
+    }
+  }
+
+  return {
+    ...entry,
+    kind,
+    id: await resolvePluginId(entry.source, spec, target, readPluginId(plugin.id, spec), entry.pkg),
+    manifest: readV1Manifest(mod, spec),
+    legacy: false,
+  }
 }
 
 export async function resolvePluginId(

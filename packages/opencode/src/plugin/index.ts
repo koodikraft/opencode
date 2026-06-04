@@ -1,8 +1,11 @@
 import type {
   Hooks,
+  PluginCapability,
   PluginInput,
   Plugin as PluginInstance,
+  PluginManifest,
   PluginModule,
+  PluginPermission,
   WorkspaceAdapter as PluginWorkspaceAdapter,
 } from "@opencode-ai/plugin"
 import { Config } from "@/config/config"
@@ -34,13 +37,56 @@ import { InstallationChannel } from "@opencode-ai/core/installation/version"
 const log = Log.create({ service: "plugin" })
 
 type State = {
-  hooks: Hooks[]
+  plugins: PluginRuntimeEntry[]
 }
 
 // Hook names that follow the (input, output) => Promise<void> trigger pattern
 type TriggerName = {
   [K in keyof Hooks]-?: NonNullable<Hooks[K]> extends (input: any, output: any) => Promise<void> ? K : never
 }[keyof Hooks]
+
+type HookName = keyof Hooks
+type PluginSource = PluginLoader.Loaded["source"] | "internal"
+type HookPolicy = {
+  capabilities?: PluginCapability[]
+  permissions?: PluginPermission[]
+}
+
+export type PluginInspection = {
+  id: string
+  spec: string
+  source: PluginSource
+  target?: string
+  manifest?: PluginManifest
+  activeHooks: HookName[]
+  blockedHooks: HookName[]
+}
+
+type PluginRuntimeEntry = PluginInspection & {
+  hooks: Hooks
+}
+
+const hookPolicies: Partial<Record<HookName, HookPolicy>> = {
+  tool: { capabilities: ["tool"] },
+  auth: { capabilities: ["provider.adapter"], permissions: ["provider.route"] },
+  provider: { capabilities: ["provider.adapter"], permissions: ["provider.route"] },
+  "chat.params": { capabilities: ["provider.adapter"], permissions: ["provider.route"] },
+  "chat.headers": { capabilities: ["provider.adapter"], permissions: ["provider.route"] },
+  "experimental.provider.small_model": { capabilities: ["provider.adapter"], permissions: ["provider.route"] },
+  event: { capabilities: ["domain.automation"] },
+  config: { capabilities: ["domain.automation"] },
+  "chat.message": { capabilities: ["domain.automation"] },
+  "permission.ask": { capabilities: ["domain.automation"] },
+  "command.execute.before": { capabilities: ["domain.automation"] },
+  "tool.execute.before": { capabilities: ["domain.automation"] },
+  "tool.execute.after": { capabilities: ["domain.automation"] },
+  "shell.env": { capabilities: ["domain.automation"], permissions: ["shell"] },
+  "experimental.chat.messages.transform": { capabilities: ["domain.automation"] },
+  "experimental.chat.system.transform": { capabilities: ["domain.automation"] },
+  "experimental.session.compacting": { capabilities: ["domain.automation"] },
+  "experimental.compaction.autocontinue": { capabilities: ["domain.automation"] },
+  "experimental.text.complete": { capabilities: ["domain.automation"] },
+}
 
 export interface Interface {
   readonly trigger: <
@@ -53,6 +99,7 @@ export interface Interface {
     output: Output,
   ) => Effect.Effect<Output>
   readonly list: () => Effect.Effect<Hooks[]>
+  readonly inspect: () => Effect.Effect<PluginInspection[]>
   readonly init: () => Effect.Effect<void>
 }
 
@@ -107,17 +154,155 @@ function getLegacyPlugins(mod: Record<string, unknown>) {
   return result
 }
 
-async function applyPlugin(load: PluginLoader.Loaded, input: PluginInput, hooks: Hooks[]) {
-  const plugin = readV1Plugin(load.mod, load.spec, "server", "detect")
-  if (plugin) {
-    await resolvePluginId(load.source, load.spec, load.target, readPluginId(plugin.id, load.spec), load.pkg)
-    hooks.push(await (plugin as PluginModule).server(input, load.options))
-    return
+function presentHookNames(hooks: Hooks): HookName[] {
+  return Object.entries(hooks).flatMap(([name, value]) => {
+    if (name === "dispose") return []
+    if (name === "tool") {
+      if (!value || typeof value !== "object" || Object.keys(value).length === 0) return []
+      return ["tool"]
+    }
+    if (value === undefined) return []
+    return [name as HookName]
+  })
+}
+
+function deniedAccess(manifest: PluginManifest | undefined, policy: HookPolicy | undefined) {
+  if (!manifest || !policy) return [] as string[]
+
+  const denied: string[] = []
+  for (const capability of policy.capabilities ?? []) {
+    if (manifest.capabilities.includes(capability)) continue
+    denied.push(`capability:${capability}`)
+  }
+  for (const permission of policy.permissions ?? []) {
+    if (manifest.permissions?.includes(permission)) continue
+    denied.push(`permission:${permission}`)
+  }
+  return denied
+}
+
+function hasCapability(manifest: PluginManifest | undefined, capability: PluginCapability) {
+  if (!manifest) return true
+  return manifest.capabilities.includes(capability)
+}
+
+function hasPermission(manifest: PluginManifest | undefined, permission: PluginPermission) {
+  if (!manifest) return true
+  return manifest.permissions?.includes(permission) ?? false
+}
+
+function deniedShell(spec: string, id: string): NonNullable<PluginInput["$"]> {
+  const fail = () => {
+    throw new Error(`Plugin ${id} (${spec}) requires manifest permission shell`)
   }
 
-  for (const server of getLegacyPlugins(load.mod)) {
-    hooks.push(await server(input, load.options))
+  const shell = ((..._args: Parameters<NonNullable<PluginInput["$"]>>) => fail()) as unknown as NonNullable<
+    PluginInput["$"]
+  >
+  shell.braces = () => fail()
+  shell.escape = () => fail()
+  shell.env = () => shell
+  shell.cwd = () => shell
+  shell.nothrow = () => shell
+  shell.throws = () => shell
+  return shell
+}
+
+function scopedInput(base: PluginInput, spec: string, id: string, manifest: PluginManifest | undefined): PluginInput {
+  return {
+    ...base,
+    experimental_workspace: {
+      register(type: string, adapter: PluginWorkspaceAdapter) {
+        if (!hasCapability(manifest, "workspace.adapter")) {
+          log.warn("plugin workspace adapter blocked by manifest capability", { plugin: id, spec, type })
+          return
+        }
+        if (!hasPermission(manifest, "workspace.write")) {
+          log.warn("plugin workspace adapter blocked by manifest permission", {
+            plugin: id,
+            spec,
+            type,
+            permission: "workspace.write",
+          })
+          return
+        }
+        base.experimental_workspace.register(type, adapter)
+      },
+    },
+    $: hasPermission(manifest, "shell") ? base.$ : deniedShell(spec, id),
   }
+}
+
+function sanitizeHooks(spec: string, id: string, manifest: PluginManifest | undefined, hooks: Hooks) {
+  const next = { ...hooks }
+  const blockedHooks: HookName[] = []
+
+  for (const name of presentHookNames(hooks)) {
+    const denied = deniedAccess(manifest, hookPolicies[name])
+    if (!denied.length) continue
+    Reflect.deleteProperty(next, name)
+    blockedHooks.push(name)
+    log.warn("plugin hook blocked by manifest", { plugin: id, spec, hook: name, denied })
+  }
+
+  return {
+    hooks: next,
+    blockedHooks,
+  }
+}
+
+function createPluginEntry(
+  id: string,
+  spec: string,
+  source: PluginSource,
+  target: string | undefined,
+  manifest: PluginManifest | undefined,
+  hooks: Hooks,
+): PluginRuntimeEntry {
+  const sanitized = sanitizeHooks(spec, id, manifest, hooks)
+  return {
+    id,
+    spec,
+    source,
+    target,
+    manifest,
+    hooks: sanitized.hooks,
+    activeHooks: presentHookNames(sanitized.hooks),
+    blockedHooks: sanitized.blockedHooks,
+  }
+}
+
+async function applyPlugin(load: PluginLoader.Loaded, input: PluginInput) {
+  const plugin = readV1Plugin(load.mod, load.spec, "server", "detect")
+  if (plugin) {
+    const id = await resolvePluginId(load.source, load.spec, load.target, readPluginId(plugin.id, load.spec), load.pkg)
+    return [
+      createPluginEntry(
+        id,
+        load.spec,
+        load.source,
+        load.target,
+        load.manifest,
+        await (plugin as PluginModule).server(scopedInput(input, load.spec, id, load.manifest), load.options),
+      ),
+    ]
+  }
+
+  return Promise.all(
+    getLegacyPlugins(load.mod).map(async (server, index) =>
+      {
+        const id = `${load.spec}#${index + 1}`
+        return createPluginEntry(
+          id,
+          load.spec,
+          load.source,
+          load.target,
+          undefined,
+          await server(scopedInput(input, load.spec, id, undefined), load.options),
+        )
+      },
+    ),
+  )
 }
 
 export const layer = Layer.effect(
@@ -129,7 +314,7 @@ export const layer = Layer.effect(
 
     const state = yield* InstanceState.make<State>(
       Effect.fn("Plugin.state")(function* (ctx) {
-        const hooks: Hooks[] = []
+        const loadedPlugins: PluginRuntimeEntry[] = []
         const bridge = yield* EffectBridge.make()
 
         function publishPluginError(message: string) {
@@ -162,26 +347,27 @@ export const layer = Layer.effect(
           $: typeof Bun === "undefined" ? undefined : Bun.$,
         }
 
-        for (const plugin of flags.disableDefaultPlugins ? [] : internalPlugins(flags)) {
+        for (const [index, plugin] of (flags.disableDefaultPlugins ? [] : internalPlugins(flags)).entries()) {
+          const id = `internal:${plugin.name || index + 1}`
           log.info("loading internal plugin", { name: plugin.name })
           const init = yield* Effect.tryPromise({
-            try: () => plugin(input),
+            try: async () => createPluginEntry(id, id, "internal", undefined, undefined, await plugin(input)),
             catch: (err) => {
               log.error("failed to load internal plugin", { name: plugin.name, error: err })
             },
           }).pipe(Effect.option)
-          if (init._tag === "Some") hooks.push(init.value)
+          if (init._tag === "Some") loadedPlugins.push(init.value)
         }
 
-        const plugins = flags.pure ? [] : (cfg.plugin_origins ?? [])
+        const configuredPlugins = flags.pure ? [] : (cfg.plugin_origins ?? [])
         if (flags.pure && cfg.plugin_origins?.length) {
           log.info("skipping external plugins in pure mode", { count: cfg.plugin_origins.length })
         }
-        if (plugins.length) yield* config.waitForDependencies()
+        if (configuredPlugins.length) yield* config.waitForDependencies()
 
         const loaded = yield* Effect.promise(() =>
           PluginLoader.loadExternal({
-            items: plugins,
+            items: configuredPlugins,
             kind: "server",
             report: {
               start(candidate) {
@@ -226,13 +412,18 @@ export const layer = Layer.effect(
           // Keep plugin execution sequential so hook registration and execution
           // order remains deterministic across plugin runs.
           yield* Effect.tryPromise({
-            try: () => applyPlugin(load, input, hooks),
+            try: () => applyPlugin(load, input),
             catch: (err) => {
               const message = errorMessage(err)
               log.error("failed to load plugin", { path: load.spec, error: message })
               return message
             },
           }).pipe(
+            Effect.tap((entries) =>
+              Effect.sync(() => {
+                loadedPlugins.push(...entries)
+              }),
+            ),
             Effect.catch(() => {
               // TODO: make proper events for this
               // events.publish(Session.Event.Error, {
@@ -246,9 +437,9 @@ export const layer = Layer.effect(
         }
 
         // Notify plugins of current config
-        for (const hook of hooks) {
+        for (const plugin of loadedPlugins) {
           yield* Effect.tryPromise({
-            try: () => Promise.resolve((hook as any).config?.(cfg)),
+            try: () => Promise.resolve((plugin.hooks as any).config?.(cfg)),
             catch: (err) => {
               log.error("plugin config hook failed", { error: err })
             },
@@ -258,8 +449,8 @@ export const layer = Layer.effect(
         const unsubscribe = yield* events.listen((event) => {
           if (event.location?.directory !== ctx.directory) return Effect.void
           return Effect.sync(() => {
-            for (const hook of hooks) {
-              void hook["event"]?.({ event: { id: event.id, type: event.type, properties: event.data } as any })
+            for (const plugin of loadedPlugins) {
+              void plugin.hooks["event"]?.({ event: { id: event.id, type: event.type, properties: event.data } as any })
             }
           })
         })
@@ -267,10 +458,10 @@ export const layer = Layer.effect(
 
         yield* Effect.addFinalizer(() =>
           Effect.forEach(
-            hooks,
-            (hook) =>
+            loadedPlugins,
+            (plugin) =>
               Effect.tryPromise({
-                try: () => Promise.resolve(hook.dispose?.()),
+                try: () => Promise.resolve(plugin.hooks.dispose?.()),
                 catch: (error) => {
                   log.error("plugin dispose hook failed", { error })
                 },
@@ -279,7 +470,7 @@ export const layer = Layer.effect(
           ),
         )
 
-        return { hooks }
+        return { plugins: loadedPlugins }
       }),
     )
 
@@ -290,8 +481,8 @@ export const layer = Layer.effect(
     >(name: Name, input: Input, output: Output) {
       if (!name) return output
       const s = yield* InstanceState.get(state)
-      for (const hook of s.hooks) {
-        const fn = hook[name] as any
+      for (const plugin of s.plugins) {
+        const fn = plugin.hooks[name] as any
         if (!fn) continue
         yield* Effect.promise(async () => fn(input, output))
       }
@@ -300,14 +491,19 @@ export const layer = Layer.effect(
 
     const list = Effect.fn("Plugin.list")(function* () {
       const s = yield* InstanceState.get(state)
-      return s.hooks
+      return s.plugins.map((item) => item.hooks)
+    })
+
+    const inspect = Effect.fn("Plugin.inspect")(function* () {
+      const s = yield* InstanceState.get(state)
+      return s.plugins.map(({ hooks: _hooks, ...item }) => item)
     })
 
     const init = Effect.fn("Plugin.init")(function* () {
       yield* InstanceState.get(state)
     })
 
-    return Service.of({ trigger, list, init })
+    return Service.of({ trigger, list, inspect, init })
   }),
 )
 

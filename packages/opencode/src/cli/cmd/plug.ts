@@ -4,7 +4,7 @@ import { Effect } from "effect"
 import { ConfigPaths } from "@/config/paths"
 import { Global } from "@opencode-ai/core/global"
 import { installPlugin, patchPluginConfig, readPluginManifest } from "../../plugin/install"
-import { resolvePluginTarget } from "../../plugin/shared"
+import { inspectPluginTarget, resolvePluginTarget } from "../../plugin/shared"
 import { errorMessage } from "../../util/error"
 import { Filesystem } from "@/util/filesystem"
 import { Process } from "@/util/process"
@@ -65,6 +65,11 @@ function cause(err: unknown) {
   if (!err || typeof err !== "object") return
   if (!("cause" in err)) return
   return (err as { cause?: unknown }).cause
+}
+
+function joinList(items: string[] | undefined, fallback: string) {
+  if (!items?.length) return fallback
+  return items.join(", ")
 }
 
 export function createPlugTask(input: PlugInput, dep: PlugDeps = defaultPlugDeps) {
@@ -128,6 +133,32 @@ export function createPlugTask(input: PlugInput, dep: PlugDeps = defaultPlugDeps
     inspect.stop(
       `Detected ${manifest.targets.map((item) => item.kind).join(" + ")} target${manifest.targets.length === 1 ? "" : "s"}`,
     )
+    dep.log.info(
+      `Package: ${(manifest.package.name ?? mod) + (manifest.package.version ? `@${manifest.package.version}` : "")}`,
+    )
+    dep.log.info(`Targets: ${manifest.targets.map((item) => item.kind).join(", ")}`)
+
+    if (manifest.targets.some((item) => item.kind === "server")) {
+      const server = await inspectPluginTarget(mod, target.target, "server").then(
+        (item) => ({ ok: true as const, item }),
+        (error: unknown) => ({ ok: false as const, error }),
+      )
+
+      if (!server.ok) {
+        dep.log.info(`Server manifest unreadable: ${errorMessage(server.error)}`)
+      }
+      if (server.ok && server.item) {
+        if (server.item.id) dep.log.info(`Plugin id: ${server.item.id}`)
+        if (server.item.legacy) {
+          dep.log.info("Server manifest: legacy export (no metadata declared)")
+        }
+        if (server.item.manifest) {
+          if (server.item.manifest.name) dep.log.info(`Name: ${server.item.manifest.name}`)
+          dep.log.info(`Capabilities: ${joinList(server.item.manifest.capabilities, "none declared")}`)
+          dep.log.info(`Permissions: ${joinList(server.item.manifest.permissions, "none declared")}`)
+        }
+      }
+    }
 
     const patch = dep.spinner()
     patch.start("Updating plugin config...")

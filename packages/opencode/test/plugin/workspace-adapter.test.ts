@@ -1,5 +1,5 @@
 import { afterEach, describe, expect } from "bun:test"
-import { Effect, Layer } from "effect"
+import { Effect, Exit, Layer } from "effect"
 import { FetchHttpClient } from "effect/unstable/http"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { Database } from "@opencode-ai/core/database/database"
@@ -132,6 +132,117 @@ describe("plugin.workspace", () => {
         directory: space,
         extra: { key: "value" },
       })
+    }),
+  )
+
+  it.instance("plugin blocks workspace adapter without capability", () =>
+    Effect.gen(function* () {
+      const dir = (yield* TestInstance).directory
+      const type = `plug-${Math.random().toString(36).slice(2)}`
+      const file = path.join(dir, "plugin.ts")
+      yield* Effect.promise(() =>
+        Bun.write(
+          file,
+          [
+            "export default {",
+            '  id: "demo.workspace.capability",',
+            "  manifest: {",
+            '    capabilities: ["tool"],',
+            '    permissions: ["workspace.write"],',
+            "  },",
+            "  server: async ({ experimental_workspace }) => {",
+            `    experimental_workspace.register(${JSON.stringify(type)}, {`,
+            '      name: "plug",',
+            '      description: "blocked adapter",',
+            "      configure(input) { return input },",
+            "      async create() {},",
+            "      async remove() {},",
+            '      target(input) { return { type: "local", directory: input.directory! } },',
+            "    })",
+            "    return {}",
+            "  },",
+            "}",
+            "",
+          ].join("\n"),
+        ),
+      )
+
+      yield* Effect.promise(() =>
+        Bun.write(
+          path.join(dir, "opencode.json"),
+          JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: [pathToFileURL(file).href] }, null, 2),
+        ),
+      )
+
+      const plugin = yield* Plugin.Service
+      yield* plugin.init()
+      const workspace = yield* Workspace.Service
+      const ctx = yield* InstanceState.context
+      const created = yield* Effect.exit(
+        workspace.create({
+          type,
+          branch: null,
+          extra: null,
+          projectID: ctx.project.id,
+        }),
+      )
+
+      expect(Exit.isFailure(created)).toBe(true)
+    }),
+  )
+
+  it.instance("plugin blocks workspace adapter without permission", () =>
+    Effect.gen(function* () {
+      const dir = (yield* TestInstance).directory
+      const type = `plug-${Math.random().toString(36).slice(2)}`
+      const file = path.join(dir, "plugin.ts")
+      yield* Effect.promise(() =>
+        Bun.write(
+          file,
+          [
+            "export default {",
+            '  id: "demo.workspace.permission",',
+            "  manifest: {",
+            '    capabilities: ["workspace.adapter"],',
+            "  },",
+            "  server: async ({ experimental_workspace }) => {",
+            `    experimental_workspace.register(${JSON.stringify(type)}, {`,
+            '      name: "plug",',
+            '      description: "blocked adapter",',
+            "      configure(input) { return input },",
+            "      async create() {},",
+            "      async remove() {},",
+            '      target(input) { return { type: "local", directory: input.directory! } },',
+            "    })",
+            "    return {}",
+            "  },",
+            "}",
+            "",
+          ].join("\n"),
+        ),
+      )
+
+      yield* Effect.promise(() =>
+        Bun.write(
+          path.join(dir, "opencode.json"),
+          JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: [pathToFileURL(file).href] }, null, 2),
+        ),
+      )
+
+      const plugin = yield* Plugin.Service
+      yield* plugin.init()
+      const workspace = yield* Workspace.Service
+      const ctx = yield* InstanceState.context
+      const created = yield* Effect.exit(
+        workspace.create({
+          type,
+          branch: null,
+          extra: null,
+          projectID: ctx.project.id,
+        }),
+      )
+
+      expect(Exit.isFailure(created)).toBe(true)
     }),
   )
 })

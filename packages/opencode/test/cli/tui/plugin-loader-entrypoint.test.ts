@@ -75,6 +75,69 @@ test("loads npm tui plugin from package ./tui export", async () => {
   }
 })
 
+test("surfaces tui manifest metadata in runtime status", async () => {
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      const file = path.join(dir, "manifest-plugin.ts")
+      const spec = pathToFileURL(file).href
+
+      await Bun.write(
+        file,
+        `export default {
+  id: "demo.tui.manifest",
+  manifest: {
+    kind: "addon",
+    name: "Manifested TUI Plugin",
+    capabilities: ["ui.workspace.panel", "ui.settings"],
+    permissions: ["workspace.read"],
+    workspace: "project",
+  },
+  tui: async () => {},
+}
+`,
+      )
+
+      return { spec }
+    },
+  })
+
+  process.env.OPENCODE_PLUGIN_META_FILE = path.join(tmp.path, "plugin-meta.json")
+  const config = createTuiResolvedConfig({
+    plugin: [tmp.extra.spec],
+    plugin_origins: [
+      {
+        spec: tmp.extra.spec,
+        scope: "local",
+        source: path.join(tmp.path, "tui.json"),
+      },
+    ],
+  })
+  const wait = spyOn(TuiConfig, "waitForDependencies").mockResolvedValue()
+  const cwd = spyOn(process, "cwd").mockImplementation(() => tmp.path)
+
+  try {
+    await TuiPluginRuntime.init({ api: createTuiPluginApi(), config })
+    expect(TuiPluginRuntime.list().find((item) => item.id === "demo.tui.manifest")).toEqual({
+      id: "demo.tui.manifest",
+      source: "file",
+      spec: tmp.extra.spec,
+      target: tmp.extra.spec,
+      enabled: true,
+      active: true,
+      name: "Manifested TUI Plugin",
+      kind: "addon",
+      capabilities: ["ui.workspace.panel", "ui.settings"],
+      permissions: ["workspace.read"],
+      workspace: "project",
+    })
+  } finally {
+    await TuiPluginRuntime.dispose()
+    cwd.mockRestore()
+    wait.mockRestore()
+    delete process.env.OPENCODE_PLUGIN_META_FILE
+  }
+})
+
 test("does not use npm package exports dot for tui entry", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {

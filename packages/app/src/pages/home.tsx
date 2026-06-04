@@ -760,11 +760,14 @@ function HomeSessionSearchResultRow(props: {
   onHighlight: () => void
   onSelect: (session: Session) => void
 }) {
+  const language = useLanguage()
   const globalSync = useServerSync()
   const notification = useNotification()
   const permission = usePermission()
   const [sessionStore] = globalSync.child(props.record.session.directory, { bootstrap: false })
-  const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
+  const title = createMemo(
+    () => sessionTitle(props.record.session.title, language.t("command.session.new")) || props.record.session.id,
+  )
   const unseenCount = createMemo(() => notification.session.unseenCount(props.record.session.id))
   const hasError = createMemo(() => notification.session.unseenHasError(props.record.session.id))
   const hasPermissions = createMemo(
@@ -863,11 +866,14 @@ function HomeSessionGroupHeader(props: { title: string; onNewSession?: () => voi
 }
 
 function HomeSessionRow(props: { record: HomeSessionRecord; openSession: (session: Session) => void }) {
+  const language = useLanguage()
   const globalSync = useServerSync()
   const notification = useNotification()
   const permission = usePermission()
   const [sessionStore] = globalSync.child(props.record.session.directory, { bootstrap: false })
-  const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
+  const title = createMemo(
+    () => sessionTitle(props.record.session.title, language.t("command.session.new")) || props.record.session.id,
+  )
   const unseenCount = createMemo(() => notification.session.unseenCount(props.record.session.id))
   const hasError = createMemo(() => notification.session.unseenHasError(props.record.session.id))
   const hasPermissions = createMemo(

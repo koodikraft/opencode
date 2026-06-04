@@ -1,6 +1,5 @@
 import "@/index.css"
 import * as Sentry from "@sentry/solid"
-import { I18nProvider } from "@opencode-ai/ui/context"
 import { DialogProvider } from "@opencode-ai/ui/context/dialog"
 import { FileComponentProvider } from "@opencode-ai/ui/context/file"
 import { MarkedProvider } from "@opencode-ai/ui/context/marked"
@@ -60,11 +59,6 @@ const SessionRoute = Object.assign(
   ),
   { preload: Session.preload },
 )
-
-function UiI18nBridge(props: ParentProps) {
-  const language = useLanguage()
-  return <I18nProvider value={{ locale: language.intl, t: language.t }}>{props.children}</I18nProvider>
-}
 
 declare global {
   interface Window {
@@ -163,22 +157,20 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
         }}
       >
         <LanguageProvider locale={props.locale}>
-          <UiI18nBridge>
-            <ErrorBoundary
-              fallback={(error) => {
-                Sentry.captureException(error)
-                return <ErrorPage error={error} />
-              }}
-            >
-              <QueryProvider>
-                <DialogProvider>
-                  <MarkedProvider>
-                    <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
-                  </MarkedProvider>
-                </DialogProvider>
-              </QueryProvider>
-            </ErrorBoundary>
-          </UiI18nBridge>
+          <ErrorBoundary
+            fallback={(error) => {
+              Sentry.captureException(error)
+              return <ErrorPage error={error} />
+            }}
+          >
+            <QueryProvider>
+              <DialogProvider>
+                <MarkedProvider>
+                  <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
+                </MarkedProvider>
+              </DialogProvider>
+            </QueryProvider>
+          </ErrorBoundary>
         </LanguageProvider>
       </ThemeProvider>
     </MetaProvider>

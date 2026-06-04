@@ -351,6 +351,7 @@ export const dict = {
   "context.usage.clickToView": "انقر لعرض السياق",
   "context.usage.view": "عرض استخدام السياق",
   "language.en": "English",
+  "language.fi": "Suomi",
   "language.zh": "简体中文",
   "language.zht": "繁體中文",
   "language.ko": "한국어",
